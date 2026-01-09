@@ -33,7 +33,8 @@ class TenantLoginController extends Controller
             ];
             if (Auth::guard('tenant')->attempt($credentials)) {
                 $request->session()->regenerate();
-                return redirect()->route('tenant.index')->with('success', 'เข้าสู่ระบบสำเร็จ! ยินดีต้อนรับคุณผู้เช่า');
+                $tenant = Auth::guard('tenant')->user();
+                return redirect()->route('tenant.index')->with('success', 'เข้าสู่ระบบสำเร็จ! ยินดีต้อนรับคุณ ' . $tenant->first_name);
             }else {
                 
                 return redirect()->back()->withErrors([
