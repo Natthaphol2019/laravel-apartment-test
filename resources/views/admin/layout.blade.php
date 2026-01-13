@@ -201,9 +201,22 @@
                 </a>
 
             <div class="menu-category">การเงิน & บัญชี</div>
-            <a href="#" class="nav-link"><i class="bi bi-receipt-cutoff"></i><span class="nav-text">ตั้งค่าเก็บค่าใช้จ่ายกับผู้เช่า <br> (ยังไม่ทำ)</span></a>
-            <a href="#" class="nav-link"><i class="bi bi-receipt-cutoff"></i><span class="nav-text">ออกใบแจ้งหนี้ (ยังไม่ทำ)</span></a>
-            <a href="#" class="nav-link"><i class="bi bi-cash-stack"></i><span class="nav-text">บันทึกรายรับ (ยังไม่ทำ)</span></a>
+                <a href="{{ route('admin.tenant_expenses.show') }}" class="nav-link {{ request()->routeIs('admin.tenant_expenses.*') ? 'active' : '' }}">
+                    <i class="bi bi-receipt-cutoff"></i>
+                    <span class="nav-text">ตั้งค่าเก็บค่าใช้จ่ายกับผู้เช่า</span>
+                </a>
+                <a href="{{ route('admin.meter_readings.show') }}" class="nav-link {{ request()->routeIs('admin.meter_readings.*') ? 'active' : '' }}">
+                    <i class="bi bi-receipt-cutoff"></i>
+                    <span class="nav-text">จดมิเตอร์น้ำไฟ</span>
+                </a>
+                <a href="{{ route('admin.invoices.show') }}" class="nav-link {{ request()->routeIs('admin.invoice.*') ? 'active' : '' }}">
+                    <i class="bi bi-receipt-cutoff"></i>
+                    <span class="nav-text">ออกใบแจ้งหนี้ (กำลังทำ)</span>
+                </a>
+                
+                <a href="#" class="nav-link"><i class="bi bi-cash-stack"></i><span class="nav-text">ประวัติการชำระเงินค่าเช่า (ยังไม่ทำ)</span></a>
+                <a href="#" class="nav-link"><i class="bi bi-cash-stack"></i><span class="nav-text">บันทึกรายรับ-รายจ่าย (ยังไม่ทำ)</span></a>
+
             @if (Auth::guard('admin')->user()->role === 'ผู้บริหาร')            
                 <div class="menu-category">จัดการผู้ดูแลระบบงาน</div>
                 <a href="{{ route('admin.users_manage.show') }}" class="nav-link"><i class="bi bi-person-fill"></i><span class="nav-text">ข้อมูลผู้ดูแลระบบงาน</span></a>
@@ -278,11 +291,35 @@
     </script>
 
     <script>
-        @if(session('success'))
-            Swal.fire({ icon: 'success', title: 'สำเร็จ!', text: "{{ session('success') }}", timer: 2000, showConfirmButton: false });
-        @endif
+        //  1. ดักจับ Error จาก withErrors() 
         @if($errors->any())
-            Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด!', html: "{!! implode('<br>', $errors->all()) !!}", confirmButtonColor: '#4e73df' });
+            Swal.fire({ 
+                icon: 'error', 
+                title: 'เกิดข้อผิดพลาด!', 
+                html: "{!! implode('<br>', $errors->all()) !!}", 
+                confirmButtonColor: '#4e73df' 
+            });
+        @endif
+
+        // 2. ดักจับ Error จาก with('error', ...) 
+        @if(session('error'))
+            Swal.fire({ 
+                icon: 'error', 
+                title: 'แจ้งเตือน', 
+                text: "{{ session('error') }}", 
+                confirmButtonColor: '#4e73df' 
+            });
+        @endif
+
+        // 3. ดักจับ Success จาก with('success', ...)
+        @if(session('success'))
+            Swal.fire({ 
+                icon: 'success', 
+                title: 'สำเร็จ!', 
+                text: "{{ session('success') }}", 
+                timer: 2000,
+                showConfirmButton: false 
+            });
         @endif
     </script>
     

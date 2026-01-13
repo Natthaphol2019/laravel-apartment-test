@@ -12,6 +12,10 @@ use App\Models\RoomType;
 use App\Models\Building;
 use App\Models\Room;
 use App\Models\Tenant;
+use App\Models\TenantExpense;
+use App\Models\MeterReading;
+use App\Models\Invoice;
+use App\Models\InvoiceDetail;
 use App\Models\User;
 class AdminController extends Controller
 {
@@ -168,6 +172,7 @@ class AdminController extends Controller
     // ---------------------------------------------
 
     // จัดการราคาห้อง Room_price
+
         public function roomPriceShow(Request $request){
             $room_prices = RoomPrices::with(['building', 'roomType'])
                 ->when($request->building_id, function ($q) use ($request) {
@@ -624,6 +629,752 @@ class AdminController extends Controller
             }
         }
     // ---------------------------------------------
+    // จัดการค่าใช้จ่ายกับผู้เช่า Tenant Expenses
+        public function tenantExpensesShow()
+        {
+            $expenses = TenantExpense::paginate(10);
+            return view('admin.tenant_expenses.show', compact('expenses'));
+        }
+
+        public function insertTenantExpense(Request $request){
+            try{
+                DB::beginTransaction();
+                $request->validate([
+                    'name' => 'required|string|max:50|unique:tenant_expenses,name',
+                    'price' => 'required|numeric|min:0',
+                ]);
+                DB::table('tenant_expenses')->insert([
+                    'name' => $request->name,
+                    'price' => $request->price,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                // บันทึกการเปลี่ยนแปลง
+                DB::commit();
+                return redirect()->route('admin.tenant_expenses.show')->with('success', 'เพิ่มรายการค่าใช้จ่ายสำเร็จ');
+            }catch(\Exception $e){
+                // ยกเลิกการบันทึกข้อมูลถ้ามีข้อผิดพลาด
+                DB::rollBack();
+                return redirect()->back()->withErrors([ 'error' => $e->getMessage()]);
+            }
+        }
+
+        public function updateTenantExpense(Request $request, $id){
+            try{
+                DB::beginTransaction();
+                $request->validate([
+                    'name' => 'required|string|max:50|unique:tenant_expenses,name,'.$id,
+                    'price' => 'required|numeric|min:0',
+                ]);
+                $data = [
+                    'name' => $request->name,
+                    'price' => $request->price,
+                    'updated_at' => now(),
+                ];
+                DB::table('tenant_expenses')->where('id',$id)->update($data);
+                // บันทึกการเปลี่ยนแปลง
+                DB::commit();
+                return redirect()->route('admin.tenant_expenses.show')->with('success','ข้อมูลรายการค่าใช้จ่ายถูกอัปเดตแล้ว');
+            }catch(\Exception $e){
+                // ยกเลิกการบันทึกข้อมูลถ้ามีข้อผิดพลาด
+                DB::rollBack();
+                return redirect()->back()->withErrors([ 'error' => $e->getMessage()]);
+
+            }
+        }
+
+        public function deleteTenantExpense($id){
+            try{
+                DB::beginTransaction();
+                DB::table('tenant_expenses')->where('id',$id)->delete();
+                // บันทึกการเปลี่ยนแปลง
+                DB::commit();
+                return redirect()->route('admin.tenant_expenses.show')->with('success','ลบรายการค่าใช้จ่ายสำเร็จ');
+            }catch(\Exception $e){
+                // ยกเลิกการบันทึกข้อมูลถ้ามีข้อผิดพลาด
+                DB::rollBack();
+                return redirect()->back()->withErrors([ 'error' => $e->getMessage()]);
+
+            }
+        }
+    // ---------------------------------------------
+
+    // จดมิเตอร์น้ำไฟ Meter Readings
+
+        public function meterReadingsInsertForm(Request $request){
+
+            $billing_month = $request->billing_month ?? date('Y-m');
+
+            // 1. หา ID ของห้องที่จดมิเตอร์ในเดือนนี้ไปแล้ว ทั้งน้ำและไฟ
+            $completedRoomIds = MeterReading::where('billing_month', $billing_month)
+                ->groupBy('room_id')
+                ->havingRaw('COUNT(DISTINCT meter_type) >= 2') // จดครบทั้งน้ำและไฟ
+                ->pluck('room_id');
+
+            // 2. ดึงเฉพาะห้องที่มีผู้เช่า และ "ไม่อยู่ในรายชื่อที่จดเสร็จแล้ว"
+            $rooms = Room::with(['tenants' => function($q) {
+                    $q->where('status', 'กำลังใช้งาน');
+                }])
+                ->where('status', 'มีผู้เช่า')
+                ->whereNotIn('id', $completedRoomIds) // กรองห้องที่จดเสร็จแล้วออก
+                ->orderBy('room_number', 'asc')
+                ->get();
+
+            $existingReadings = MeterReading::where('billing_month', $billing_month)->get();
+
+            foreach ($rooms as $room) {
+                foreach (['water', 'electric'] as $type) {
+                    $lastReading = MeterReading::where('room_id', $room->id)
+                        ->where('meter_type', $type)
+                        ->where('billing_month', '<', $billing_month)
+                        ->orderBy('billing_month', 'desc')
+                        ->first();
+                    
+                    // ถ้าไม่มีข้อมูลเดือนก่อน ให้ส่งค่า null หรือ 0 ไป
+                    $room->{"prev_{$type}"} = $lastReading ? $lastReading->current_value : null;
+                }
+            }
+            // สร้างตัวแปรใหม่สำหรับแสดงผลภาษาไทย
+                $dateObj = \Carbon\Carbon::parse($billing_month);
+                $thai_date = $dateObj->locale('th')->getTranslatedMonthName() . ' ' . ($dateObj->year + 543);
+            return view('admin.meter_readings.insert', compact('rooms', 'billing_month', 'existingReadings', 'thai_date'));
+        }
+        public function insertMeterReading(Request $request)
+        {
+            $request->validate([
+                'billing_month' => 'required',
+                'reading_date'=> 'required|date',
+                'data' => 'required|array'
+            ]);
+
+            try {
+                DB::beginTransaction();
+
+                foreach ($request->data as $roomId => $types) {
+                    foreach ($types as $type => $values) {
+                        // ข้ามหากไม่ได้กรอกเลขมิเตอร์ปัจจุบัน
+                        if (is_null($values['current_value'])) continue;
+
+                        $prev = (float)$values['previous_value'];
+                        $current = (float)$values['current_value'];
+
+                        // บันทึกลงตาราง meter_readings โดยตรง
+                        MeterReading::create([
+                            'room_id'       => $roomId,
+                            'tenant_id'     => $values['tenant_id'],
+                            'meter_type'    => $type,
+                            'previous_value'=> $prev,
+                            'current_value' => $current,
+                            'units_used'    => $current - $prev,
+                            'billing_month' => $request->billing_month,
+                            'reading_date'  => $request->reading_date,
+                        ]);
+                    }
+                }
+
+                DB::commit();
+                return redirect()->back()->with('success', 'บันทึกข้อมูลและออกรายการเรียบร้อยแล้ว');
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                return redirect()->back()->withErrors(['error' => 'เกิดข้อผิดพลาด: ' . $e->getMessage()]);
+            }
+        }
+        // หน้าแก้ไขมิเตอร์ (เฉพาะรายการที่จดแล้ว)
+        public function readMeterReading(Request $request)
+        {
+            $billing_month = $request->billing_month ?? date('Y-m');
+            // ดึงวันที่ที่เคยจดไว้ (ดึงจากรายการแรกที่เจอในเดือนนั้น)
+            $recordedDate = MeterReading::where('billing_month', $billing_month)->value('reading_date') ?? date('Y-m-d');
+
+            // 1. หา ID ของห้องที่จดมิเตอร์ในเดือนนี้ไปแล้ว (อย่างน้อย 1 อย่าง)
+            $recordedRoomIds = MeterReading::where('billing_month', $billing_month)
+                ->pluck('room_id')
+                ->unique();
+
+            // 2. ดึงข้อมูลห้องพักและผู้เช่าเฉพาะห้องที่มีการจดบันทึกไปแล้ว
+            $rooms = Room::with(['tenants' => function($q) {
+                    $q->where('status', 'กำลังใช้งาน');
+                }])
+                ->whereIn('id', $recordedRoomIds)
+                ->orderBy('room_number', 'asc')
+                ->get();
+
+            $existingReadings = MeterReading::where('billing_month', $billing_month)->get();
+
+            // ดึงค่า Previous เหมือนหน้า Show เพื่อใช้ในการคำนวณใหม่หากมีการแก้ไข
+            foreach ($rooms as $room) {
+                foreach (['water', 'electric'] as $type) {
+                    $lastReading = MeterReading::where('room_id', $room->id)
+                        ->where('meter_type', $type)
+                        ->where('billing_month', '<', $billing_month)
+                        ->orderBy('billing_month', 'desc')
+                        ->first();
+                    $room->{"prev_{$type}"} = $lastReading ? $lastReading->current_value : null;
+                }
+            }
+            // สร้างตัวแปรใหม่สำหรับแสดงผลภาษาไทย
+                $dateObj = \Carbon\Carbon::parse($billing_month);
+                $thai_date = $dateObj->locale('th')->getTranslatedMonthName() . ' ' . ($dateObj->year + 543);
+            return view('admin.meter_readings.show', compact('rooms', 'billing_month', 'existingReadings','thai_date','recordedDate'));
+        }
+
+        // ฟังก์ชันสำหรับ Update ข้อมูล (ใช้ updateOrCreate เพื่อความปลอดภัย)
+        public function updateMeterReading(Request $request)
+        {
+            $request->validate([
+                'billing_month'=>'required',
+                'reading_date'=>'required|date',
+                'data' => 'required|array'
+            ]);
+
+            try {
+                DB::beginTransaction();
+                foreach ($request->data as $roomId => $types) {
+                    foreach ($types as $type => $values) {
+                        if (is_null($values['current_value'])) continue;
+
+                        $prev = (float)$values['previous_value'];
+                        $current = (float)$values['current_value'];
+
+                        MeterReading::updateOrCreate(
+                            [
+                                'room_id' => $roomId,
+                                'meter_type' => $type,
+                                'billing_month' => $request->billing_month,
+                            ],
+                            [
+                                'tenant_id' => $values['tenant_id'],
+                                'previous_value' => $prev,
+                                'current_value' => $current,
+                                'units_used' => $current - $prev,
+                                'reading_date' => $request->reading_date,
+                            ]
+                        );
+                    }
+                }
+                DB::commit();
+                return redirect()->back()->with('success', 'แก้ไขข้อมูลมิเตอร์เรียบร้อยแล้ว');
+            } catch (\Exception $e) {
+                DB::rollBack();
+                return redirect()->back()->withErrors(['error' => 'เกิดข้อผิดพลาด: ' . $e->getMessage()]);
+            }
+        }
+    // ---------------------------------------------
+
+    // จัดการระบบ Invoice
+
+        public function invoiceShow(Request $request)
+        {
+            $billing_month = $request->billing_month ?? date('Y-m');
+            $dateObj = \Carbon\Carbon::parse($billing_month);
+            $endOfMonth = $dateObj->endOfMonth()->format('Y-m-d');
+
+            // ดึงห้องที่มีสถานะ "มีผู้เช่า"
+            $rooms = Room::with(['tenants' => function($q) use ($endOfMonth) {
+                    $q->where('start_date', '<=', $endOfMonth)
+                    ->where('status', 'กำลังใช้งาน');
+                }, 'roomPrice']) 
+                ->where('status', 'มีผู้เช่า')
+                ->get();
+
+            $rooms = $rooms->filter(fn($room) => $room->tenants->isNotEmpty());
+
+            $rooms->each(function($room) use ($billing_month) {
+                $tenant = $room->tenants->first();
+
+                // 1. ดึงเลขมิเตอร์ยกมา (Previous Values)
+                $prevMonth = \Carbon\Carbon::parse($billing_month)->subMonth()->format('Y-m');
+                foreach(['water', 'electric'] as $type) {
+                    $lastReading = MeterReading::where('room_id', $room->id)
+                        ->where('meter_type', $type)
+                        ->where('billing_month', $prevMonth)
+                        ->first();
+                    $attrName = "prev_{$type}";
+                    $room->$attrName = $lastReading ? $lastReading->current_value : 0;
+                }
+
+                // 2. ตรวจสอบสถานะมิเตอร์และบิล
+                $readings = MeterReading::where('room_id', $room->id)->where('billing_month', $billing_month)->get();
+                $room->can_create_invoice = $readings->where('meter_type', 'water')->isNotEmpty() && $readings->where('meter_type', 'electric')->isNotEmpty();
+                $room->meter_status = $room->can_create_invoice ? 'จดมิเตอร์ครบแล้ว' : 'ยังไม่ได้จดมิเตอร์';
+                $room->meter_color = $room->can_create_invoice ? 'success' : 'danger';
+
+                $invoice = Invoice::where('room_id', $room->id)->where('billing_month', $billing_month)->first();
+
+                if (!$invoice) {
+                    $room->invoice_status = 'ยังไม่ได้สร้างบิล';
+                    $room->invoice_color = 'secondary';
+                    $room->invoice_id = null;
+                } else {
+                    $room->invoice_status = $invoice->status; 
+                    $room->invoice_color = ($invoice->status == 'ชำระแล้ว') ? 'success' : 'warning';
+                    $room->invoice_id = $invoice->id;
+                    $room->invoice_total = $invoice->total_amount;
+                    
+                    // เรียกใช้ฟังก์ชันใหม่เพื่อแปลงวันที่ออกบิล
+                    $room->thai_issue_date = $this->toThaiDate($invoice->issue_date);
+                }
+
+                $room->tenant_id = $tenant->id;
+            });
+
+            // แปลงรอบเดือนเรียกเก็บ (ไม่เอา "วัน" จึงใส่ false)
+            $thai_billing_month = $this->toThaiDate($billing_month, false);
+
+            return view('admin.invoices.show', compact('rooms', 'billing_month', 'thai_billing_month'));
+        }
+        // แปลงเป็นวันที่ไทย
+        private function toThaiDate($date, $showDay = true)
+        {
+            if (!$date) return '-';
+            
+            $carbon = \Carbon\Carbon::parse($date)->locale('th');
+            $thaiYear = $carbon->year + 543; // แปลงเป็น พ.ศ.
+
+            if ($showDay) {
+                // ผลลัพธ์: 13 มกราคม 2569
+                return $carbon->isoFormat('D MMMM') . ' ' . $thaiYear;
+            } else {
+                // ผลลัพธ์: มกราคม 2569
+                return $carbon->isoFormat('MMMM') . ' ' . $thaiYear;
+            }
+        }
+        public function insertInvoiceOne(Request $request)
+        {
+            // 1. Validation: ตรวจสอบข้อมูลนำเข้าเบื้องต้น
+            $request->validate([
+                'room_id' => 'required|exists:rooms,id',
+                'billing_month' => 'required|string|max:7',
+                'issue_date'    => 'required|date'
+            ]);
+
+            try {
+                DB::beginTransaction();
+
+                // 2. ป้องกันการสร้างบิลซ้ำในเดือนเดียวกัน
+                $exists = Invoice::where('room_id', $request->room_id)
+                                ->where('billing_month', $request->billing_month)
+                                ->exists();
+                if ($exists) {
+                    return redirect()->back()->withErrors(['error' => 'ห้องนี้มีการสร้างบิลสำหรับเดือนนี้ไปแล้ว']);
+                }
+
+                // 3. ดึงข้อมูล Room, RoomPrice และ Tenant
+                $room = Room::with(['roomPrice', 'tenants' => function($q) {
+                    $q->where('status', 'กำลังใช้งาน');
+                }])->findOrFail($request->room_id);
+
+                $tenant = $room->tenants->first();
+
+                // 4. ตรวจสอบความพร้อมของข้อมูลผู้เช่า
+                if (!$tenant) {
+                    throw new \Exception("ไม่พบผู้เช่าที่กำลังใช้งานในห้องนี้ ไม่สามารถสร้างบิลได้");
+                }
+
+                // 5. คำนวณเลขที่บิลและวันครบกำหนด (วันที่ 5 ของเดือนถัดไป)
+                $invoiceNumber = 'INV' . str_replace('-', '', $request->billing_month) . '-' . $room->room_number;
+                $dueDate = \Carbon\Carbon::parse($request->billing_month)->addMonth()->startOfMonth()->addDays(4);
+
+                // 6. สร้าง Invoice หลัก
+                $invoice = Invoice::create([
+                    'tenant_id' => $tenant->id,
+                    'room_id' => $room->id,
+                    'invoice_number' => $invoiceNumber,
+                    'billing_month' => $request->billing_month,
+                    'issue_date' => $request->issue_date,
+                    'total_amount' => 0, // รออัปเดตหลังจากคำนวณรายการย่อย
+                    'status' => 'กรุณาส่งบิล',
+                    'due_date' => $dueDate,
+                ]);
+
+                $totalAmount = 0;
+                $expenses = TenantExpense::all(); // โหลดรายการค่าใช้จ่ายทั้งหมด
+
+                // 7. รายการที่ 1: ค่าเช่าห้อง
+                $roomPrice = $room->roomPrice->price ?? 0;
+                InvoiceDetail::create([
+                    'invoice_id' => $invoice->id,
+                    'name' => 'ค่าเช่าห้อง',
+                    'quantity' => 1,
+                    'price_per_unit' => $roomPrice,
+                    'subtotal' => $roomPrice
+                ]);
+                $totalAmount += $roomPrice;
+
+                // 8. รายการที่ 2: ค่าน้ำ/ค่าไฟ (คำนวณตามหน่วยที่ใช้จริง)
+                $meterReadings = MeterReading::where('room_id', $room->id)
+                    ->where('billing_month', $request->billing_month)
+                    ->get();
+
+                foreach ($meterReadings as $reading) {
+                    $type = $reading->meter_type == 'water' ? 'ค่าน้ำ' : 'ค่าไฟ';
+                    $tenant_expense = $expenses->where('name', $type)->first();
+                    $rate = $tenant_expense->price ?? 0;
+                    $sub = $reading->units_used * $rate;
+
+                    InvoiceDetail::create([
+                        'invoice_id' => $invoice->id,
+                        'tenant_expense_id' => $tenant_expense->id ?? null,
+                        'meter_reading_id' => $reading->id,
+                        'name' => $tenant_expense->name ?? $type,
+                        'previous_unit' => $reading->previous_value,
+                        'current_unit' => $reading->current_value,
+                        'quantity' => $reading->units_used,
+                        'price_per_unit' => $rate,
+                        'subtotal' => $sub
+                    ]);
+                    $totalAmount += $sub;
+                }
+
+                // 9. รายการที่ 3: ค่าคนมาอาศัยเพิ่ม (เช็คจาก ID 5)
+                if ($tenant->resident_count > 2) {
+                    $extraPeople = $tenant->resident_count - 2;
+                    $extraExpense = $expenses->where('id', 5)->first();
+                    $pricePerPerson = $extraExpense->price ?? 400.00;
+
+                    InvoiceDetail::create([
+                        'invoice_id' => $invoice->id,
+                        'tenant_expense_id' => $extraExpense->id ?? null,
+                        'name' => ($extraExpense->name ?? 'คนมาอาศัยเพิ่ม') . ' (ส่วนเกิน ' . $extraPeople . ' คน)',
+                        'quantity' => $extraPeople,
+                        'price_per_unit' => $pricePerPerson,
+                        'subtotal' => $extraPeople * $pricePerPerson
+                    ]);
+                    $totalAmount += ($extraPeople * $pricePerPerson);
+                }
+
+                // 10. รายการที่ 4: ค่าที่จอดรถ (เช็คจาก ID 3)
+                if ($tenant->has_parking) {
+                    $parking = $expenses->where('id', 3)->first();
+                    if ($parking) {
+                        InvoiceDetail::create([
+                            'invoice_id' => $invoice->id,
+                            'tenant_expense_id' => $parking->id,
+                            'name' => $parking->name,
+                            'quantity' => 1,
+                            'price_per_unit' => $parking->price,
+                            'subtotal' => $parking->price
+                        ]);
+                        $totalAmount += $parking->price;
+                    }
+                }
+
+                // 11. อัปเดตยอดรวมเงินสุทธิใน Invoice หลัก
+                $invoice->update(['total_amount' => $totalAmount]);
+
+                DB::commit();
+                return redirect()->back()->with('success', 'สร้างบิลค่าเช่าห้อง ' . $room->room_number . ' สำเร็จ')->withInput();
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                return redirect()->back()->withErrors(['error' => 'เกิดข้อผิดพลาด: ' . $e->getMessage()]);
+            }
+        }
+        // ------------------------------------------------
+        // create ใบทั้งหมดในเดือนนั้นๆ
+        public function insertInvoicesAll(Request $request)
+        {
+            // 1. Validation ข้อมูลนำเข้า
+            $request->validate([
+                'billing_month' => 'required|string|max:7', // เช่น 2026-01
+                'issue_date'    => 'required|date' 
+            ]);
+
+            $billing_month = $request->billing_month;
+            $issue_date = $request->issue_date;
+
+            try {
+                DB::beginTransaction();
+
+                // ดึงเฉพาะห้องที่มีสถานะ "มีผู้เช่า"
+                $rooms = Room::where('status', 'มีผู้เช่า')->get();
+                $count = 0;
+
+                foreach ($rooms as $room) {
+                    // เรียกใช้ Logic การสร้างบิลทีละห้อง
+                    $result = $this->generateInvoiceLogic($room->id, $billing_month, $issue_date);
+                    if ($result) $count++;
+                }
+
+                DB::commit();
+                
+                if ($count > 0) {
+                    return redirect()->back()->with('success', "สร้างบิลสำเร็จจำนวน $count ห้อง (เฉพาะห้องที่จดมิเตอร์ครบแล้ว)")->withInput();
+                } else {
+                    return redirect()->back()->withErrors(['error' => "ไม่มีห้องใดที่ตรงตามเงื่อนไข (อาจจดมิเตอร์ไม่ครบ หรือมีบิลอยู่แล้ว)"])->withInput();
+                }
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                return redirect()->back()->withErrors(['error' => 'เกิดข้อผิดพลาด: ' . $e->getMessage()]);
+            }
+        }
+
+        /**
+         * Logic หลักในการสร้างใบแจ้งหนี้
+         */
+        private function generateInvoiceLogic($roomId, $billingMonth, $issueDate)
+        {
+            // 1. ป้องกันการสร้างบิลซ้ำในเดือนเดียวกัน
+            $exists = Invoice::where('room_id', $roomId)
+                            ->where('billing_month', $billingMonth)
+                            ->exists();
+            if ($exists) return null;
+
+            // 2. ตรวจสอบความพร้อมของข้อมูลมิเตอร์ (ต้องมีทั้งค่าน้ำและค่าไฟ)
+            $meterReadings = MeterReading::where('room_id', $roomId)
+                                ->where('billing_month', $billingMonth)
+                                ->get();
+            
+            if ($meterReadings->where('meter_type', 'water')->isEmpty() || 
+                $meterReadings->where('meter_type', 'electric')->isEmpty()) {
+                return null; // ข้ามห้องที่ยังจดมิเตอร์ไม่ครบ
+            }
+
+            // 3. ดึงข้อมูลห้อง ผู้เช่า และราคามาตรฐาน
+            $room = Room::with(['roomPrice', 'tenants' => function($q) {
+                        $q->where('status', 'กำลังใช้งาน');
+                    }])->findOrFail($roomId);
+
+            $tenant = $room->tenants->first();
+            if (!$tenant) return null;
+
+            $expenses = TenantExpense::all(); // โหลดรายการค่าใช้จ่ายมาตรฐาน
+
+            // 4. คำนวณข้อมูลบิลเบื้องต้น
+            $invoiceNumber = 'INV' . str_replace('-', '', $billingMonth) . '-' . $room->room_number;
+            // กำหนดชำระเป็นวันที่ 5 ของเดือนถัดไป
+            $dueDate = \Carbon\Carbon::parse($billingMonth)->addMonth()->startOfMonth()->addDays(4);
+
+            // 5. สร้าง Invoice หลัก
+            $invoice = Invoice::create([
+                'tenant_id'      => $tenant->id,
+                'room_id'        => $room->id,
+                'invoice_number' => $invoiceNumber,
+                'billing_month'  => $billingMonth,
+                'issue_date'     => $issueDate, // วันที่เลือกมาจากแอดมิน
+                'total_amount'   => 0, // รออัปเดตท้ายสุด
+                'status'         => 'กรุณาส่งบิล',
+                'due_date'       => $dueDate,
+            ]);
+
+            $totalAmount = 0;
+
+            // 6. เพิ่มรายการย่อย (InvoiceDetails) -----------------------------------
+
+            // รายการที่ 1: ค่าเช่าห้อง
+            $roomPrice = $room->roomPrice->price ?? 0;
+            InvoiceDetail::create([
+                'invoice_id'     => $invoice->id,
+                'name'           => 'ค่าเช่าห้อง',
+                'quantity'       => 1,
+                'price_per_unit' => $roomPrice,
+                'subtotal'       => $roomPrice
+            ]);
+            $totalAmount += $roomPrice;
+
+            // รายการที่ 2: ค่าน้ำ/ค่าไฟ (ตามหน่วยที่ใช้จริง)
+            foreach ($meterReadings as $reading) {
+                $type = $reading->meter_type == 'water' ? 'ค่าน้ำ' : 'ค่าไฟ';
+                $expense = $expenses->where('name', $type)->first();
+                $rate = $expense->price ?? 0;
+                $sub = $reading->units_used * $rate;
+
+                InvoiceDetail::create([
+                    'invoice_id'        => $invoice->id,
+                    'tenant_expense_id' => $expense->id ?? null,
+                    'meter_reading_id'  => $reading->id,
+                    'name'              => $expense->name ?? $type,
+                    'previous_unit'     => $reading->previous_value,
+                    'current_unit'      => $reading->current_value,
+                    'quantity'          => $reading->units_used,
+                    'price_per_unit'    => $rate,
+                    'subtotal'          => $sub
+                ]);
+                $totalAmount += $sub;
+            }
+
+            // รายการที่ 3: ค่าคนมาอาศัยเพิ่ม (ส่วนเกินจาก 2 คน)
+            if ($tenant->resident_count > 2) {
+                $extraPeople = $tenant->resident_count - 2;
+                $extraExpense = $expenses->where('id', 5)->first(); // สมมติ ID 5 คือค่าคนเพิ่ม
+                $pricePerPerson = $extraExpense->price ?? 400.00;
+
+                InvoiceDetail::create([
+                    'invoice_id'        => $invoice->id,
+                    'tenant_expense_id' => $extraExpense->id ?? null,
+                    'name'              => ($extraExpense->name ?? 'คนมาอาศัยเพิ่ม') . " (ส่วนเกิน $extraPeople คน)",
+                    'quantity'          => $extraPeople,
+                    'price_per_unit'    => $pricePerPerson,
+                    'subtotal'          => $extraPeople * $pricePerPerson
+                ]);
+                $totalAmount += ($extraPeople * $pricePerPerson);
+            }
+
+            // รายการที่ 4: ค่าที่จอดรถ
+            if ($tenant->has_parking) {
+                $parking = $expenses->where('id', 3)->first(); // สมมติ ID 3 คือค่าจอดรถ
+                if ($parking) {
+                    InvoiceDetail::create([
+                        'invoice_id'        => $invoice->id,
+                        'tenant_expense_id' => $parking->id,
+                        'name'              => $parking->name,
+                        'quantity'          => 1,
+                        'price_per_unit'    => $parking->price,
+                        'subtotal'          => $parking->price
+                    ]);
+                    $totalAmount += $parking->price;
+                }
+            }
+
+            // 7. อัปเดตยอดรวมเงินสุทธิใน Invoice
+            $invoice->update(['total_amount' => $totalAmount]);
+
+            return $invoice;
+        }
+
+        // --------------------------------------------
+        public function readInvoiceDetails($id)
+        {
+            // 1. ดึงข้อมูลใบแจ้งหนี้พร้อมรายการย่อย และความสัมพันธ์ที่เกี่ยวข้อง
+            $invoice = Invoice::with(['details','tenant','tenant.room','tenant.room.roomPrice','details.meterReading'])->findOrFail($id);
+
+            // 2. จัดการวันที่ภาษาไทย
+                // แปลง billing_month (ประจำเดือน) -> มกราคม 2569
+                $billingDate = \Carbon\Carbon::parse($invoice->billing_month)->locale('th');
+                $invoice->thai_billing_month = $billingDate->isoFormat('MMMM') . ' ' . ($billingDate->year + 543);
+
+                // แปลง issue_date (วันที่ออกบิล) -> 12 มกราคม 2569
+                $issueDate = \Carbon\Carbon::parse($invoice->issue_date)->locale('th');
+                $invoice->thai_issue_date = $issueDate->isoFormat('D MMMM') . ' ' . ($issueDate->year + 543);
+
+                // แปลง due_date (กำหนดชำระ) -> 05 กุมภาพันธ์ 2569
+                $dueDate = \Carbon\Carbon::parse($invoice->due_date)->locale('th');
+                $invoice->thai_due_date = $dueDate->isoFormat('D MMMM') . ' ' . ($dueDate->year + 543);
+
+                // หาวันที่จดมิเตอร์จากรายการแรกที่มีข้อมูล
+                $firstReading = $invoice->details->whereNotNull('meter_reading_id')->first();
+                if ($firstReading && $firstReading->meterReading) {
+                    $readDate = \Carbon\Carbon::parse($firstReading->meterReading->reading_date)->locale('th');
+                    $invoice->thai_reading_date = $readDate->isoFormat('D MMMM') . ' ' . ($readDate->year + 543);
+                } else {
+                    $invoice->thai_reading_date = '-';
+                }
+            // 3. ดึงข้อมูลบริษัท/อพาร์ทเม้นท์ (สมมติว่ามีแค่ record เดียว)
+            $apartment = DB::table('apartment')->first(); 
+            
+            return view('admin.invoices.invoice_details', compact('invoice', 'apartment'));
+        }
+        // create มิเตอร์ 1 อัน ต่อ 1 เดือน
+        public function insertInvoiceMeterReadingOne(Request $request)
+        {
+            $request->validate([
+                'billing_month' => 'required',
+                'room_id' => 'required',
+                'tenant_id' => 'required',
+                'water_current' => 'required|numeric|min:0',
+                'electric_current' => 'required|numeric|min:0',
+                'reading_date' => 'required|date'
+            ]);
+
+            try {
+                DB::beginTransaction();
+
+                $roomId = $request->room_id;
+                $tenantId = $request->tenant_id;
+                $month = $request->billing_month;
+
+                // ข้อมูลมิเตอร์จาก Modal
+                $meters = [
+                    'water' => [
+                        'prev' => (float)$request->water_prev,
+                        'current' => (float)$request->water_current,
+                    ],
+                    'electric' => [
+                        'prev' => (float)$request->electric_prev,
+                        'current' => (float)$request->electric_current,
+                    ],
+                ];
+
+                foreach ($meters as $type => $values) {
+                    // ใช้ updateOrCreate เพื่อป้องกันข้อมูลซ้ำในเดือนเดียวกัน
+                    MeterReading::updateOrCreate(
+                        [
+                            'room_id' => $roomId,
+                            'meter_type' => $type,
+                            'billing_month' => $month,
+                        ],
+                        [
+                            'tenant_id' => $tenantId,
+                            'previous_value' => $values['prev'],
+                            'current_value' => $values['current'],
+                            'units_used' => $values['current'] - $values['prev'],
+                            'reading_date' => $request->reading_date,
+                        ]
+                    );
+                }
+
+                DB::commit();
+                return redirect()->back()->with('success', 'บันทึกเลขมิเตอร์ห้อง ' . $request->room_number . ' สำเร็จ');
+            } catch (\Exception $e) {
+                DB::rollBack();
+                return redirect()->back()->withErrors(['error' => 'เกิดข้อผิดพลาด: ' . $e->getMessage()]);
+            }
+        }
+
+            // ดึงข้อมูลสำหรับหน้าแก้ไข
+            
+            public function editInvoiceDetails($id)
+            {
+                $invoice = Invoice::with(['details', 'tenant.room'])->findOrFail($id);
+                $apartment = DB::table('apartment')->first(); 
+                
+                // ดึงรายการค่าใช้จ่ายทั้งหมดเพื่อทำ Dropdown 
+                    // WhereNotin ยกเว้นไม่เลือก id นั้นๆ
+                $expenses = TenantExpense::whereNotIn('id', [1, 2])->orderBy('id', 'asc')->get();
+
+                return view('admin.invoices.edit_details', compact('invoice', 'apartment', 'expenses'));
+            }
+
+            // บันทึกการแก้ไข
+            public function updateInvoiceDetails(Request $request, $id)
+            {
+                try {
+                    DB::beginTransaction();
+                    $invoice = Invoice::findOrFail($id);
+                    $invoice->details()->delete(); // ลบรายการเดิม
+
+                    $totalAmount = 0;
+                    foreach ($request->items as $item) {
+                        $subtotal = (float)$item['quantity'] * (float)$item['price'];
+                        
+                        InvoiceDetail::create([
+                            'invoice_id'        => $invoice->id,
+                            'tenant_expense_id' => $item['expense_id'] ?? null,
+                            'meter_reading_id'  => $item['meter_reading_id'] ?? null, // รักษา ID มิเตอร์ไว้
+                            'name'              => $item['name'],
+                            'previous_unit'     => $item['previous_unit'] ?? null,
+                            'current_unit'      => $item['current_unit'] ?? null,
+                            'quantity'          => $item['quantity'],
+                            'price_per_unit'    => $item['price'],
+                            'subtotal'          => $subtotal,
+                        ]);
+                        $totalAmount += $subtotal;
+                    }
+
+                    $invoice->update([
+                        'total_amount' => $totalAmount, // ยอดรวม
+                        'issue_date' => $request->issue_date // บันทึกเวลาใหม่
+                    ]);
+                    DB::commit();
+                    return redirect()->route('admin.invoices.details', $id)->with('success', 'แก้ไขข้อมูลสำเร็จ');
+                } catch (\Exception $e) {
+                    DB::rollBack();
+                    return redirect()->back()->withErrors(['error' => $e->getMessage()]);
+                }
+            }
+    // ---------------------------------------------
     // จัดการผู้ดูแลระบบ Admin
         public function usersManageShow()
         {
@@ -701,4 +1452,5 @@ class AdminController extends Controller
                 return redirect()->back()->withErrors(['error' => $e->getMessage()]);
             }
         }
+    // ---------------------------------------------
 }

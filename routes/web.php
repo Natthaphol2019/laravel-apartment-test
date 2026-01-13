@@ -54,9 +54,28 @@ Route::prefix('admin')->middleware('auth:admin')->group(function () {
         Route::put('/tenants/update/{id}', [AdminController::class, 'updateTenant'])->name('admin.tenants.update');
         Route::put('/tenants/updateStatus/{id}', [AdminController::class, 'updateStatusTenant'])->name('admin.tenants.updateStatusTenant');
         Route::post('/tenants/delete/{id}', [AdminController::class, 'deleteTenant'])->name('admin.tenants.delete');
-   // จัดการผู้ดูแลระบบ Admin
+    // ตั้งค่าเก็บค่าใช้จ่ายกับผู้เช่า Tenant Expenses
+        Route::get('/tenant_expenses', [AdminController::class, 'tenantExpensesShow'])->name('admin.tenant_expenses.show');
+        Route::post('/tenant_expenses/insert', [AdminController::class, 'insertTenantExpense'])->name('admin.tenant_expenses.insert');
+        Route::put('/tenant_expenses/update/{id}', [AdminController::class, 'updateTenantExpense'])->name('admin.tenant_expenses.update');
+        Route::post('/tenant_expenses/delete/{id}', [AdminController::class, 'deleteTenantExpense'])->name('admin.tenant_expenses.delete');
+    // จดมิเตอร์น้ำไฟ Meter Readings
+        Route::get('/meter_readings', [AdminController::class, 'readMeterReading'])->name('admin.meter_readings.show');
+        Route::get('/meter_readings/insert', [AdminController::class, 'meterReadingsInsertForm'])->name('admin.meter_readings.insertForm');
+        Route::post('/meter_readings/insert', [AdminController::class, 'insertMeterReading'])->name('admin.meter_readings.insert');
+        Route::put('/meter_readings/update', [AdminController::class,'updateMeterReading'])->name('admin.meter_readings.update');
+    // จัดการ บิลค่าเช่า Invoices
+        Route::get('/invoices',[AdminController::class, 'invoiceShow'])->name('admin.invoices.show');
+        Route::post('invoices/insertOne', [AdminController::class , 'insertInvoiceOne'])->name('admin.invoice.insertInvoiceOne');
+        Route::post('invoices/insertAll', [AdminController::class , 'insertInvoicesAll'])->name('admin.invoices.insertInvoicesAll');
+        Route::post('invoices/insertMeterReadingOne', [AdminController::class , 'insertInvoiceMeterReadingOne'])->name('admin.invoice.insertInvoiceMeterReadingOne');
+        Route::get('invoices/details/{id}', [AdminController::class , 'readInvoiceDetails'])->name('admin.invoices.details');
+        Route::get('invoices/edit/details/{id}', [AdminController::class , 'editInvoiceDetails'])->name('admin.invoices.editDetails');
+        Route::put('invoices/update/details/{id}', [AdminController::class , 'updateInvoiceDetails'])->name('admin.invoices.updateDetails');
+    // จัดการผู้ดูแลระบบ Admin
         Route::get('/users_manage', [AdminController::class, 'usersManageShow'])->name('admin.users_manage.show');
         Route::post('/users_manage/insert', [AdminController::class, 'insertUserManage'])->name('admin.users_manage.insert');
         Route::put('/users_manage/update/{id}', [AdminController::class, 'updateUserManage'])->name('admin.users_manage.update');
         Route::post('/users_manage/delete/{id}', [AdminController::class, 'deleteUserManage'])->name('admin.users_manage.delete');
+    
 });
