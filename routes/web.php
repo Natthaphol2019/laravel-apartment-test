@@ -14,6 +14,7 @@ Route::post('/tenant/login', [TenantLoginController::class, 'login'])->name('ten
 
 Route::prefix('tenant')->middleware('auth:tenant')->group(function () {
     Route::post('/logout', [TenantLoginController::class, 'tenantLogout'])->name('tenant.logout');
+    Route::get('/dashboard', [TenantController::class, 'tenantIndex'])->name('tenant.dashboard');
     Route::get('/index', [TenantController::class, 'tenantIndex'])->name('tenant.index');
 });
 // Admin ฝั่งผู้ดูแลระบบ

@@ -2,12 +2,11 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use App\Models\Room;
 
 class Tenant extends Authenticatable
 {
-    //
     protected $fillable = [
         'room_id',
         'id_card',
@@ -32,14 +31,24 @@ class Tenant extends Authenticatable
     protected $hidden = [
         'password',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'password' => 'hashed',
+            'start_date' => 'date',
+            'end_date' => 'date',
+            'has_parking' => 'boolean',
+        ];
+    }
+
     public function room()
     {
         return $this->belongsTo(Room::class);
     }
-        protected function casts(): array
+
+    public function getFullNameAttribute()
     {
-        return [
-            'password' => 'hashed',
-        ];
+        return $this->first_name . ' ' . $this->last_name;
     }
 }

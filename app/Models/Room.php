@@ -23,4 +23,9 @@ class Room extends Model
     {
         return $this->hasMany(Tenant::class);
     }
+    //8:29 1/9/2026 เพิ่มส่วนนี้เข้าไปเพื่อดึงชั้นมา
+    public function getFloorAttribute()
+    {
+        return substr($this->room_number,0 ,1);
+    }
 }
