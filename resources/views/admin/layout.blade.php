@@ -211,10 +211,15 @@
                 </a>
                 <a href="{{ route('admin.invoices.show') }}" class="nav-link {{ request()->routeIs('admin.invoice.*') ? 'active' : '' }}">
                     <i class="bi bi-receipt-cutoff"></i>
-                    <span class="nav-text">ออกใบแจ้งหนี้ (กำลังทำ)</span>
+                    <span class="nav-text">ออกใบแจ้งหนี้ (กำลังทำ ขาดระบบยืนยัน )</span>
                 </a>
                 
                 <a href="#" class="nav-link"><i class="bi bi-cash-stack"></i><span class="nav-text">ประวัติการชำระเงินค่าเช่า (ยังไม่ทำ)</span></a>
+
+                <a href="{{ route('admin.accounting_category.show') }}" class="nav-link {{ request()->routeIs('admin.accounting_category.*') ? 'active' : '' }}">
+                    <i class="bi bi-cash-stack"></i>
+                    <span class="nav-text">จัดการหมวดหมู่รายรับ-รายจ่าย (กำลังทำ)</span>
+                </a>
                 <a href="#" class="nav-link"><i class="bi bi-cash-stack"></i><span class="nav-text">บันทึกรายรับ-รายจ่าย (ยังไม่ทำ)</span></a>
 
             @if (Auth::guard('admin')->user()->role === 'ผู้บริหาร')            

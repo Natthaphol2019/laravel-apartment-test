@@ -1,0 +1,31 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Payment extends Model
+{
+    //
+    protected $fillable = [
+        'invoice_id' , 'amount_paid' , 'payment_date',
+        'payment_method' , 'slip_image', 'note'
+    ];
+    protected $casts = [
+        'payment_date' => 'date',
+    ];
+    /**
+     * ประวัติการชำระเงินนี้ อ้างอิงถึงใบแจ้งหนี้ใบใดใบหนึ่ง 
+     */
+    public function invoice(){
+        return $this->belongsTo(Invoice::class);
+    }
+    /**
+     * ประวัติการชำระเงินก้อนนี้ ถูกบันทึกลงในระบบบัญชีรายการใด 
+     */
+    public function payments()
+    {
+        // เปลี่ยนจาก hasOne เป็น hasMany เพราะ 1 บิล อาจมีการแบ่งจ่ายหลายรอบ
+        return $this->hasMany(Payment::class, 'invoice_id');
+    }
+}

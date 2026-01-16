@@ -66,12 +66,18 @@ Route::prefix('admin')->middleware('auth:admin')->group(function () {
         Route::put('/meter_readings/update', [AdminController::class,'updateMeterReading'])->name('admin.meter_readings.update');
     // จัดการ บิลค่าเช่า Invoices
         Route::get('/invoices',[AdminController::class, 'invoiceShow'])->name('admin.invoices.show');
-        Route::post('invoices/insertOne', [AdminController::class , 'insertInvoiceOne'])->name('admin.invoice.insertInvoiceOne');
-        Route::post('invoices/insertAll', [AdminController::class , 'insertInvoicesAll'])->name('admin.invoices.insertInvoicesAll');
-        Route::post('invoices/insertMeterReadingOne', [AdminController::class , 'insertInvoiceMeterReadingOne'])->name('admin.invoice.insertInvoiceMeterReadingOne');
-        Route::get('invoices/details/{id}', [AdminController::class , 'readInvoiceDetails'])->name('admin.invoices.details');
-        Route::get('invoices/edit/details/{id}', [AdminController::class , 'editInvoiceDetails'])->name('admin.invoices.editDetails');
-        Route::put('invoices/update/details/{id}', [AdminController::class , 'updateInvoiceDetails'])->name('admin.invoices.updateDetails');
+        Route::post('/invoices/insertOne', [AdminController::class , 'insertInvoiceOne'])->name('admin.invoice.insertInvoiceOne');
+        Route::post('/invoices/insertAll', [AdminController::class , 'insertInvoicesAll'])->name('admin.invoices.insertInvoicesAll');
+        Route::post('/invoices/insertMeterReadingOne', [AdminController::class , 'insertInvoiceMeterReadingOne'])->name('admin.invoice.insertInvoiceMeterReadingOne');
+        Route::post('/invoices/sendInvoiceOne', [AdminController::class , 'sendInvoiceOne'])->name('admin.invoice.sendInvoiceOne');
+        Route::post('/invoices/sendInvoiceAll', [AdminController::class , 'sendInvoiceAll'])->name('admin.invoice.sendInvoiceAll');
+        Route::get('/invoices/details/{id}', [AdminController::class , 'readInvoiceDetails'])->name('admin.invoices.details');
+        Route::get('/invoices/edit/details/{id}', [AdminController::class , 'editInvoiceDetails'])->name('admin.invoices.editDetails');
+        Route::put('/invoices/update/details/{id}', [AdminController::class , 'updateInvoiceDetails'])->name('admin.invoices.updateDetails');
+    // จัดการ ระบบ accounting_category
+        Route::get('/accounting_category',[AdminController::class , 'accountingCategoryShow'])->name('admin.accounting_category.show');
+        Route::post('/accounting_category/insert',[AdminController::class , 'insertAccountingCategory'])->name('admin.accounting_category.insert');
+        Route::put('/accounting_category/update/{id}',[AdminController::class , 'updateAccountingCategory'])->name('admin.accounting_category.update');
     // จัดการผู้ดูแลระบบ Admin
         Route::get('/users_manage', [AdminController::class, 'usersManageShow'])->name('admin.users_manage.show');
         Route::post('/users_manage/insert', [AdminController::class, 'insertUserManage'])->name('admin.users_manage.insert');

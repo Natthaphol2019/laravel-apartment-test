@@ -85,7 +85,8 @@
                     </tbody>
                     <tfoot>
                         <tr>
-                            <td colspan="6" class="text-end fw-bold">ยอดรวมสุทธิ (Total Amount)</td>
+                            <td colspan="3" class="text-center fw-bold">{{ $invoice->total_amount_thai }}</td>
+                            <td colspan="3" class="text-center fw-bold">ยอดรวมสุทธิ (Total Amount)</td>
                             <td class="text-end fw-bold text-primary" style="font-size: 1.2rem;">
                                 {{ number_format($invoice->total_amount, 2) }}
                             </td>

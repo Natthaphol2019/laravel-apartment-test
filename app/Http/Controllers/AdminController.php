@@ -16,6 +16,10 @@ use App\Models\TenantExpense;
 use App\Models\MeterReading;
 use App\Models\Invoice;
 use App\Models\InvoiceDetail;
+use App\Models\Payment;
+use App\Models\AccountingTransaction;
+use App\Models\AccountingCategory;
+use App\Models\AccountingType;
 use App\Models\User;
 class AdminController extends Controller
 {
@@ -1071,7 +1075,7 @@ class AdminController extends Controller
                 return redirect()->back()->withErrors(['error' => 'เกิดข้อผิดพลาด: ' . $e->getMessage()]);
             }
         }
-        // ------------------------------------------------
+        // **************************************
         // create ใบทั้งหมดในเดือนนั้นๆ
         public function insertInvoicesAll(Request $request)
         {
@@ -1234,7 +1238,8 @@ class AdminController extends Controller
             return $invoice;
         }
 
-        // --------------------------------------------
+
+        // **************************************
         public function readInvoiceDetails($id)
         {
             // 1. ดึงข้อมูลใบแจ้งหนี้พร้อมรายการย่อย และความสัมพันธ์ที่เกี่ยวข้อง
@@ -1261,10 +1266,56 @@ class AdminController extends Controller
                 } else {
                     $invoice->thai_reading_date = '-';
                 }
+                // 2. เพิ่มการแปลงยอดรวมเป็นตัวอักษรภาษาไทย
+                $invoice->total_amount_thai = $this->bahtText($invoice->total_amount);
             // 3. ดึงข้อมูลบริษัท/อพาร์ทเม้นท์ (สมมติว่ามีแค่ record เดียว)
             $apartment = DB::table('apartment')->first(); 
             
             return view('admin.invoices.invoice_details', compact('invoice', 'apartment'));
+        }
+        /**
+         * ฟังก์ชันสำหรับแปลงตัวเลขเป็นตัวอักษรภาษาไทย (Baht Text)
+         */
+        private function bahtText($number)
+        {
+            $number = number_format($number, 2, '.', '');
+            $number_parts = explode('.', $number);
+            $baht = $number_parts[0];
+            $satang = $number_parts[1];
+
+            $result = $this->convertText($baht) . 'บาท';
+
+            if ($satang == '00') {
+                $result .= 'ถ้วน';
+            } else {
+                $result .= $this->convertText($satang) . 'สตางค์';
+            }
+
+            return $result;
+        }
+
+        private function convertText($number)
+        {
+            $txtnum_th = array('ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า');
+            $txtunit_th = array('', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน');
+            $result = "";
+            $len = strlen($number);
+
+            for ($i = 0; $i < $len; $i++) {
+                $digit = substr($number, $i, 1);
+                if ($digit != '0') {
+                    if ($i == ($len - 1) && $digit == '1' && $len > 1) {
+                        $result .= 'เอ็ด';
+                    } elseif ($i == ($len - 2) && $digit == '2') {
+                        $result .= 'ยี่สิบ';
+                    } elseif ($i == ($len - 2) && $digit == '1') {
+                        $result .= 'สิบ';
+                    } else {
+                        $result .= $txtnum_th[$digit] . $txtunit_th[$len - $i - 1];
+                    }
+                }
+            }
+            return $result;
         }
         // create มิเตอร์ 1 อัน ต่อ 1 เดือน
         public function insertInvoiceMeterReadingOne(Request $request)
@@ -1374,7 +1425,102 @@ class AdminController extends Controller
                     return redirect()->back()->withErrors(['error' => $e->getMessage()]);
                 }
             }
+
+            public function sendInvoiceOne(Request $request){
+                $request->validate([
+                    'invoice_id'=>'required'
+                ]);
+                try{
+                    DB::beginTransaction();
+                    Invoice::where('id',$request->invoice_id)
+                        ->update([
+                            'status'=>'ค้างชำระ'
+                        ]);
+                    DB::commit();
+                    return redirect()->back()->with('success','ส่งบิลสำเร็จ');
+                }catch(\Exception $e){
+                    DB::rollBack();
+                    return redirect()->back()->withErrors(['error'=>'เกิดข้อผิดพลาด'.$e->getMessage()]);
+                }
+            }
+
+            public function sendInvoiceAll(Request $request){
+                $request->validate([
+                    'billing_month' => 'required|string|max:7'
+                ]);
+                try{
+                    DB::beginTransaction();
+                    // ค้นหา update ใบ invoice เงื่อนไข ใน "billing_month" รอบเดือนนั้นๆ และ มีสถานะ "กรุณาส่งบิล"
+                    $affectedRows = Invoice::where('billing_month',$request->billing_month)
+                                    ->where('status','กรุณาส่งบิล')
+                                    ->update(['status' => 'ค้างชำระ']);
+                    // กรณีไม่มีการ update
+                    if($affectedRows === 0){
+                        return redirect()->back()->withErrors(['error'=>'ไม่พบบิลที่พร้อมส่งในรอบเดือนนี้ หรือบิลถูกส่งไปหมดแล้ว']);
+                    }
+
+                    DB::commit();
+                    return redirect()->back()->with('success',"ส่งบิลสำเร็จทั้งหมด $affectedRows ห้อง เรียบร้อยแล้ว");
+                }catch(\Exception $e){
+                    DB::rollBack();
+                    return redirect()->back()->withErrors(['error'=>'เกิดข้อผิดพลาด'.$e->getMessage()]);
+                }
+            }
     // ---------------------------------------------
+
+    // ระบบจัดการ accounting_category
+
+        public function accountingCategoryShow()
+        {
+            // ดึงหมวดหมู่รายรับ (type_id = 1)
+            $income_categories = AccountingCategory::where('type_id', 1)->get();
+            
+            // ดึงหมวดหมู่รายจ่าย (type_id = 2)
+            $expense_categories = AccountingCategory::where('type_id', 2)->get();
+
+            return view('admin.accounting_categories.show', compact('income_categories', 'expense_categories'));
+        }
+
+        public function insertAccountingCategory(Request $request)
+        {
+            $request->validate([
+                'name' => 'required|string|max:255',
+                'type_id' => 'required|in:1,2'
+            ]);
+            try {
+                DB::beginTransaction();
+                AccountingCategory::create([
+                    'type_id' => $request->type_id,
+                    'name' => $request->name,
+                ]);
+               DB::commit();
+               return redirect()->back()->with('success', 'เพิ่มหมวดหมู่สำเร็จ');
+            } catch (\Exception $e) {
+                DB::rollBack();
+                return redirect()->back()->withErrors(['error'=>'เกิดข้อผิดพลาด'.$e->getMessage()]);
+            }
+        }
+
+        public function updateAccountingCategory(Request $request, $id)
+        {
+            $request->validate([
+                'name' => 'required|string|max:255',
+                'type_id' => 'required|in:1,2'
+            ]);
+            try {
+                DB::beginTransaction();
+                    $category = AccountingCategory::findOrFail($id);
+                    $category->update($request->only(['name', 'type_id']));
+                DB::commit();
+                return redirect()->back()->with('success', 'แก้ไขข้อมูลสำเร็จ');
+            } catch (\Exception $e) {
+                DB::rollBack();
+                return redirect()->back()->withErrors(['error'=>'เกิดข้อผิดพลาด'.$e->getMessage()]);
+            }
+        }
+
+    // ---------------------------------------------
+
     // จัดการผู้ดูแลระบบ Admin
         public function usersManageShow()
         {
