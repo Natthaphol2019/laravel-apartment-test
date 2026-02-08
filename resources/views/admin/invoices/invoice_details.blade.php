@@ -2,7 +2,7 @@
 @section('title', 'อ่านใบแจ้งหนี้')
 @section('content')
 <div class="container py-4">
-    <div class="card shadow-sm border-0">
+    <div class="card shadow-sm border-0 ">
         <div class="card-body p-5">
             <div class="row mb-4">
                 <div class="col-sm-6">
@@ -18,8 +18,7 @@
                     <p class="mb-0">โทร: {{ $apartment->phone ?? '-' }}</p>
                 </div>
                 <div class="col-sm-6 text-end">
-                    <h2 class="text-uppercase fw-bold">ใบแจ้งหนี้</h2>
-                    <h5 class="text-muted">Invoice</h5>
+                    <h2 class="text-uppercase fw-bold">ใบเสร็จรับเงิน</h2>
                     <div class="mt-3">
                         <p class="mb-0"><strong>เลขที่:</strong> {{ $invoice->invoice_number }}</p>
                         <p class="mb-0">
@@ -86,7 +85,7 @@
                     <tfoot>
                         <tr>
                             <td colspan="3" class="text-center fw-bold">{{ $invoice->total_amount_thai }}</td>
-                            <td colspan="3" class="text-center fw-bold">ยอดรวมสุทธิ (Total Amount)</td>
+                            <td colspan="3" class="text-center fw-bold">ยอดรวมสุทธิ</td>
                             <td class="text-end fw-bold text-primary" style="font-size: 1.2rem;">
                                 {{ number_format($invoice->total_amount, 2) }}
                             </td>
@@ -115,16 +114,20 @@
                             <a href="{{ route('admin.invoices.show') }}" class="btn btn-outline-secondary px-3 shadow-sm">
                                 <i class="bi bi-arrow-left"></i> กลับ
                             </a>
-            
+                            @if ($invoice->status !== 'ชำระแล้ว')
                             {{-- ปุ่มแก้ไข --}}
                             <a href="{{ route('admin.invoices.editDetails' , $invoice->id ) }}" class="btn btn-warning px-3 shadow-sm fw-bold">
                                 <i class="bi bi-pencil-square me-1"></i> แก้ไขรายการ
                             </a>
-            
+                            @endif
                             {{-- ปุ่มพิมพ์ --}}
-                            <button onclick="window.print();" class="btn btn-success px-4 shadow-sm fw-bold">
+                            <a href="{{ route('admin.invoices.print_invoice_details',$invoice->id) }}" target="_blank"
+                                class="btn btn-success px-4 shadow-sm fw-bold">
+                                <i class="bi bi-printer me-1"></i> พิมพ์ใบเสร็จรับเงิน
+                            </a>
+                            {{-- <button onclick="window.print();" class="btn btn-success px-4 shadow-sm fw-bold">
                                 <i class="bi bi-printer me-1"></i> พิมพ์ใบแจ้งหนี้
-                            </button>
+                            </button> --}}
                         </div>
                     </div>
                 </div>
@@ -136,10 +139,10 @@
 
 <style>
     /* เพิ่มการจัดการตอนพิมพ์ให้เนียนขึ้น */
-    @media print {
+    /* @media print {
         .no-print { display: none !important; }
         .border-top { border-top: 1px solid #dee2e6 !important; }
         body { background-color: white !important; }
-    }
+    } */
 </style>
 @endsection

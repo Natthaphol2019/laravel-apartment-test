@@ -26,5 +26,8 @@ class InvoiceDetail extends Model
     public function meterReading() {
         return $this->belongsTo(MeterReading::class);
     }
-
+    // เพิ่มตัวนี้เพื่อให้ดึง 'accounting_category_id' มาลงบัญชีได้อัตโนมัติ
+    public function tenantExpense() {
+        return $this->belongsTo(TenantExpense::class, 'tenant_expense_id');
+    }
 }

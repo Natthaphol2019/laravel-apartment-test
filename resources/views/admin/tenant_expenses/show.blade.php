@@ -23,6 +23,7 @@
                     <thead class="bg-light">
                         <tr>
                             <th class="px-4" style="width: 80px;">ลำดับ</th>
+                            <th>หมวดหมู่บัญชี (รายรับ) </th>
                             <th>ชื่อรายการ</th>
                             <th>ราคาต่อหน่วย</th>
                             <th>วันที่แก้ไขล่าสุด</th>
@@ -33,6 +34,11 @@
                         @foreach($expenses as $index => $item)
                         <tr>
                             <td class="px-4">{{ $index + 1 }}</td>
+                            <td>
+                                <span class="badge bg-info text-dark">
+                                    {{ $item->category->name ?? 'ยังไม่ระบุ' }}
+                                </span>
+                            </td>
                             <td>
                                 <div class="fw-bold text-dark">{{ $item->name }}</div>
                             </td>
@@ -80,6 +86,16 @@
                 @csrf
                 <div class="modal-body p-4">
                     <div class="mb-3">
+                        <label class="form-label fw-bold">หมวดหมู่บัญชี (รายรับ) *</label>
+                        <select name="accounting_category_id" id="insert_accounting_category_id" class="form-select" required>
+                            <option value="">-- เลือกหมวดหมู่รายรับ --</option>
+                            @foreach($categories as $cat)
+                                <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted">เลือกเพื่อให้ระบบลงบัญชีรายรับอัตโนมัติเมื่อผู้เช่าจ่ายเงิน</small>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label fw-bold">ชื่อรายการ *</label>
                         <input type="text" name="name" class="form-control" placeholder="เช่น ค่าน้ำ, ค่าไฟ, ค่าปรับ" required>
                     </div>
@@ -112,6 +128,15 @@
                 @csrf @method('PUT')
                 <div class="modal-body p-4">
                     <div class="mb-3">
+                        <label class="form-label fw-bold">หมวดหมู่บัญชี (รายรับ) *</label>
+                        <select name="accounting_category_id" id="edit_accounting_category_id" class="form-select" required>
+                            <option value="">-- เลือกหมวดหมู่รายรับ --</option>
+                            @foreach($categories as $cat)
+                                <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label fw-bold">ชื่อรายการ</label>
                         <input type="text" name="name" id="edit_expense_name" class="form-control" required>
                     </div>
@@ -138,6 +163,8 @@
     function openEditExpenseModal(item) {
         document.getElementById('edit_expense_name').value = item.name;
         document.getElementById('edit_expense_price').value = item.price;
+        
+        document.getElementById('edit_accounting_category_id').value = item.accounting_category_id || "";
 
         let url = "{{ route('admin.tenant_expenses.update', ':id') }}";
         url = url.replace(':id', item.id);

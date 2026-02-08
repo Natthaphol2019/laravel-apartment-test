@@ -20,7 +20,7 @@
 
                     <div class="col-lg-4 border-end">
                         <label class="form-label fw-bold text-secondary mb-2">
-                            <span class="badge bg-secondary me-1">1</span> ค้นหารอบเดือน
+                            <span class="badge bg-secondary me-1">1</span> เลือกรอบเดือน ค้นหาและสร้างบิล
                         </label>
                         <form method="GET" action="{{ route('admin.invoices.show') }}" class="vstack gap-2">
                             <input type="month" name="billing_month" class="form-control" value="{{ $billing_month }}"
@@ -74,7 +74,12 @@
                     </div>
 
                 </div>
+
             </div>
+        </div>
+        <div>
+            <a href="{{ route('admin.invoices.collectionReport', ['billing_month' => $billing_month]) }}"
+                class="btn btn-info">รายงานการเก็บเงิน</a>
         </div>
 
         <div>
@@ -84,6 +89,7 @@
                         <td>เลขห้อง</td>
                         <td>ค่าเช่า</td>
                         <td>วันที่ออกบิล</td>
+                        <td>วันที่ครบชำระ</td>
                         <td>สถานะ</td>
                         <td>จัดการ</td>
                     </tr>
@@ -110,6 +116,8 @@
                             </td>
                             {{-- วันที่ออกบิล --}}
                             <td>{{ $r->thai_issue_date ? $r->thai_issue_date : '-' }}</td>
+                            {{-- วันที่ครบชำระ --}}
+                            <td>{{ $r->thai_due_date ? $r->thai_due_date : '-' }}</td>
                             {{-- สถานะ --}}
                             <td>
                                 {{-- สถานะมิเตอร์ --}}
@@ -123,6 +131,14 @@
                                     </span>
                                 @elseif ($r->invoice_status == 'ค้างชำระ')
                                     <span class="badge bg-danger d-block">
+                                        <i class="bi bi-file-earmark-text me-1"></i> {{ $r->invoice_status }}
+                                    </span>
+                                @elseif ($r->invoice_status == 'ชำระบางส่วน')
+                                    <span class="badge bg-warning d-block">
+                                        <i class="bi bi-file-earmark-text me-1"></i> {{ $r->invoice_status }}
+                                    </span>
+                                @elseif ($r->invoice_status == 'ชำระแล้ว')
+                                    <span class="badge bg-success d-block">
                                         <i class="bi bi-file-earmark-text me-1"></i> {{ $r->invoice_status }}
                                     </span>
                                 @endif
@@ -145,9 +161,13 @@
                                             <input type="hidden" name="tenant_id" value="{{ $r->tenant_id }}">
                                             <input type="hidden" name="room_id" value="{{ $r->id }}">
                                             <input type="hidden" name="billing_month" value="{{ $billing_month }}">
-                                            <input type="hidden" name="issue_date">
-                                            <button type="button" class="btn btn-sm btn-primary"
-                                                onclick="confirmInsertOneInvoice({{ $r->id }})">สร้างบิล</button>
+                                            <input type="hidden" name="issue_date" id="issue_date_{{ $r->id }}">
+                                            {{-- ID สำหรับใส่ค่าจาก Modal --}}
+
+                                            <button type="button" class="btn btn-sm btn-primary px-3 shadow-sm fw-bold"
+                                                onclick="openCreateInvoiceModal('{{ $r->id }}', '{{ $r->room_number }}')">
+                                                <i class="bi bi-plus-circle me-1"></i> สร้างบิล
+                                            </button>
                                         </form>
                                     @else
                                         {{-- มีบิลแล้ว ให้ดูบิล --}}
@@ -157,11 +177,21 @@
                                         </a>
                                         {{-- ปุ่มส่งบิล (เช่น ส่งเข้า Line หรือ Email) --}}
                                         @if ($r->invoice_status == 'กรุณาส่งบิล')
-                                            <form action="{{ route('admin.invoice.sendInvoiceOne') }}" method="post" 
+                                            <form action="{{ route('admin.invoice.sendInvoiceOne') }}" method="post"
                                                 id="sendInvoiceOne_{{ $r->id }}">
                                                 @csrf
                                                 <input type="hidden" name="invoice_id" value="{{ $r->invoice_id }}">
-                                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="confirmSendInvoiceOne({{ $r->id }})">ส่งบิล</button>
+                                                <button type="button" class="btn btn-sm btn-outline-primary"
+                                                    onclick="confirmSendInvoiceOne({{ $r->id }})">ส่งบิล</button>
+                                            </form>
+                                            <form action="{{ route('admin.invoices.deleteInvoiceOne', $r->invoice_id) }}"
+                                                method="post" id="delete-form-{{ $r->invoice_id }}">
+                                                @csrf
+                                                {{-- ส่ง ID เข้าไปในฟังก์ชัน --}}
+                                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                                    onclick="confirmDeleteInvoiceOne('{{ $r->invoice_id }}')">
+                                                    ลบบิล
+                                                </button>
                                             </form>
                                         @endif
                                     @endif
@@ -241,6 +271,29 @@
                             onclick="checkAndSubmit()">บันทึกข้อมูล</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="createInvoiceModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-primary text-white border-0 py-3">
+                    <h6 class="modal-title fw-bold"><i class="bi bi-calendar-check me-2"></i>ระบุวันที่ออกบิล</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <p class="mb-3 small text-muted">ห้อง <span id="modal_room_display" class="fw-bold text-dark"></span> | รอบเดือน {{ $thai_billing_month }}</p>
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold text-secondary text-uppercase">วันที่ออกใบแจ้งหนี้</label>
+                        <input type="date" id="modal_issue_date" class="form-control form-control-lg border-2 text-center" 
+                            value="{{ date('Y-m-d') }}">
+                    </div>
+                    <input type="hidden" id="current_room_id"> {{-- สำหรับเก็บ ID ห้องพักชั่วคราว --}}
+                    
+                    <button type="button" class="btn btn-primary w-100 fw-bold py-2" onclick="confirmFromModal()">
+                        ดำเนินการต่อ <i class="bi bi-arrow-right-short ms-1"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -367,39 +420,8 @@
             });
         }
 
-        function confirmInsertOneInvoice(id) {
-            // 1. ดึงวันที่จากช่อง Input หลัก
-            const issueDate = document.getElementById('input_issue_date').value;
-
-            // 2. ค้นหาฟอร์มที่ต้องการส่ง
-            const form = document.getElementById('InsertOneInvoice_' + id);
-
-            // 3. กำหนดค่าลงใน input name="issue_date" ที่อยู่ในฟอร์มนั้นเท่านั้น
-            form.querySelector('input[name="issue_date"]').value = issueDate;
-            // แปลงเป็นวันที่ไทย
-            const dateObj = new Date(issueDate);
-            const issueDateThai = dateObj.toLocaleDateString('th-TH', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-            Swal.fire({
-                title: 'ยืนยันสร้างใบบิลค่าเช่า ?',
-                text: "วันที่ออกบิล: " + issueDateThai,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#28a745',
-                confirmButtonText: 'บันทึก',
-                cancelButtonText: 'ยกเลิก'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    form.submit();
-                }
-            });
-        }
-        
         function confirmSendInvoiceOne(id) {
-            
+
             // 2. ค้นหาฟอร์มที่ต้องการส่ง
             const form = document.getElementById('sendInvoiceOne_' + id);
 
@@ -434,11 +456,93 @@
                     Swal.fire({
                         title: 'กำลังดำเนินการ...',
                         allowOutsideClick: false,
-                        didOpen: () => { Swal.showLoading(); }
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
                     });
                     document.getElementById('sendAllInvoicesForm').submit();
                 }
             });
         }
+
+        function confirmDeleteInvoiceOne(invoiceId) {
+            Swal.fire({
+                title: 'ยืนยันการลบบิล?',
+                text: "รายการค่าใช้จ่ายและข้อมูลในบิลนี้จะถูกลบออกถาวร!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'ใช่, ลบเลย!',
+                cancelButtonText: 'ยกเลิก',
+                reverseButtons: true
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // แสดง Loading ระหว่างรอ
+                    Swal.fire({
+                        title: 'กำลังลบข้อมูล...',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                    // สั่ง Submit ฟอร์มที่มี ID ตรงกัน
+                    document.getElementById('delete-form-' + invoiceId).submit();
+                }
+            });
+        }
+
+        function openCreateInvoiceModal(id, roomNumber) {
+            document.getElementById('current_room_id').value = id;
+            document.getElementById('modal_room_display').innerText = roomNumber;
+            
+            // ตั้งค่า Default Date เป็นวันนี้ หรือตามวันที่ในช่อง Input หลักด้านบน (ถ้ามี)
+            const mainIssueDate = document.getElementById('input_issue_date').value;
+            document.getElementById('modal_issue_date').value = mainIssueDate || "{{ date('Y-m-d') }}";
+
+            var myModal = new bootstrap.Modal(document.getElementById('createInvoiceModal'));
+            myModal.show();
+        }
+
+        // 2. ฟังก์ชันตรวจสอบและเรียก SweetAlert ยืนยัน (Confirm)
+        function confirmFromModal() {
+            const id = document.getElementById('current_room_id').value;
+            const selectedDate = document.getElementById('modal_issue_date').value;
+            const roomNumber = document.getElementById('modal_room_display').innerText;
+
+            if (!selectedDate) {
+                Swal.fire('กรุณาเลือกวันที่', 'โปรดระบุวันที่ต้องการออกใบแจ้งหนี้', 'warning');
+                return;
+            }
+
+            // ปิด Modal ก่อนแสดงความยินยัน
+            bootstrap.Modal.getInstance(document.getElementById('createInvoiceModal')).hide();
+
+            // แปลงวันที่โชว์แบบไทย
+            const dateThai = new Date(selectedDate).toLocaleDateString('th-TH', {
+                year: 'numeric', month: 'long', day: 'numeric'
+            });
+
+            Swal.fire({
+                title: 'ยืนยันสร้างใบแจ้งหนี้?',
+                html: `ห้อง <b>${roomNumber}</b><br>วันที่ออกบิล: <span class="text-primary">${dateThai}</span>`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#0d6efd',
+                confirmButtonText: 'ตกลง, สร้างบิล',
+                cancelButtonText: 'ยกเลิก',
+                reverseButtons: true
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // ส่งค่าไปยังฟอร์มตัวจริง
+                    const form = document.getElementById('InsertOneInvoice_' + id);
+                    form.querySelector('input[name="issue_date"]').value = selectedDate;
+                    
+                    Swal.fire({ title: 'กำลังสร้างบิล...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); }});
+                    form.submit();
+                }
+            });
+        }
+
     </script>
 @endpush

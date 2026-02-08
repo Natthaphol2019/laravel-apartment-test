@@ -8,8 +8,8 @@ class AccountingTransaction extends Model
 {
     //
     protected $fillable = [
-        'category_id' , 'payment_id' , 'tenant_id',
-        'title' , 'amount' , 'entry_date' , 'description'
+        'category_id' , 'payment_id' , 'tenant_id', 'user_id',
+        'title' , 'amount' , 'entry_date' , 'description' ,'status'
     ];
     // กำหนดว่า entry_date คือวันที่ เพื่อให้ Carbon จัดการได้ง่ายขึ้น
     protected $casts = [
@@ -35,5 +35,9 @@ class AccountingTransaction extends Model
      */
     public function tenant(){
         return $this->belongsTo(Tenant::class , 'tenant_id');
+    }
+    public function admin() {
+        // เชื่อม user_id ไปยังตาราง users เพื่อดูผู้บันทึก
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

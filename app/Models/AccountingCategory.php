@@ -22,4 +22,11 @@ class AccountingCategory extends Model
     public function transactions(){
         return $this->hasMany(AccountingTransaction::class, 'category_id');
     }
+
+    public function tenant_expense()
+    {
+        // เปลี่ยนจาก hasOne เป็น hasMany เพราะ 1 บิล อาจมีการแบ่งจ่ายหลายรอบ
+        return $this->hasOne(TenantExpense::class, 'accounting_category_id');
+    }
+
 }

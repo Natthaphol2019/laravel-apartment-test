@@ -37,7 +37,7 @@
                             </h4>
                             <div class="small text-muted">
                                 เลขที่บิล: <span class="fw-semibold text-dark">#{{ $invoice->invoice_number }}</span>
-                                • รอบเดือน: {{ $invoice->billing_month }}
+                                • รอบเดือน: {{ $thai_billing_month }}
                             </div>
                         </div>
 
@@ -45,9 +45,9 @@
                             <button type="button" class="btn btn-outline-primary" onclick="addRow('standard')">
                                 <i class="bi bi-plus-circle me-1"></i> รายการมาตรฐาน
                             </button>
-                            <button type="button" class="btn btn-outline-secondary" onclick="addRow('custom')">
+                            {{-- <button type="button" class="btn btn-outline-secondary" onclick="addRow('custom')">
                                 <i class="bi bi-pencil-square me-1"></i> รายการอื่น
-                            </button>
+                            </button> --}}
                         </div>
                     </div>
 

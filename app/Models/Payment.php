@@ -8,8 +8,8 @@ class Payment extends Model
 {
     //
     protected $fillable = [
-        'invoice_id' , 'amount_paid' , 'payment_date',
-        'payment_method' , 'slip_image', 'note'
+        'invoice_id' , 'amount_paid' , 'payment_date', 'user_id',
+        'payment_method' , 'slip_image', 'note' , 'status'
     ];
     protected $casts = [
         'payment_date' => 'date',
@@ -27,5 +27,9 @@ class Payment extends Model
     {
         // เปลี่ยนจาก hasOne เป็น hasMany เพราะ 1 บิล อาจมีการแบ่งจ่ายหลายรอบ
         return $this->hasMany(Payment::class, 'invoice_id');
+    }
+
+    public function admin() {
+        return $this->belongsTo(User::class, 'user_id');
     }
 }
