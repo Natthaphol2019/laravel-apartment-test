@@ -13,4 +13,4 @@ Artisan::command('inspire', function () {
 //         ->everyMinute()
 //         ->between('07:00', '15:00')
 //         ->withoutOverlapping(); // ป้องกันไม่ให้รันซ้อนกันหากรอบก่อนหน้ายังไม่จบ
-Schedule::command('app:calculate-late-fees')->everyMinute()->between('07:00', '23:00')->withoutOverlapping();;
+Schedule::command('app:calculate-late-fees')->everyMinute()->between('07:00', '23:00')->withoutOverlapping();

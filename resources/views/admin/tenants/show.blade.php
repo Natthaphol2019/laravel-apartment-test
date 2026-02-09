@@ -144,7 +144,7 @@
                             <input type="text" name="phone" class="form-control" maxlength="10">
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label fw-bold">จำนวนผู้อยู่อาศัย</label>
+                            <label class="form-label fw-bold">จำนวนผู้อยู่อาศัย (ถ้าามากกว่า 2 คน คิดเพิ่ม 400 ตามสัญญาเช่า)</label>
                             <input type="number" name="resident_count" class="form-control" value="1" min="1">
                         </div>
 

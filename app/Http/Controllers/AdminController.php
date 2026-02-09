@@ -652,7 +652,7 @@ class AdminController extends Controller
                     $months = $unpaidInvoices->map(function ($inv) {
                         return $this->toThaiDate($inv->billing_month, false); // false เพื่อเอาเฉพาะเดือน/ปี
                     })->unique()->implode(', '); // unique() เพื่อป้องกันกรณีมีหลายบิลในเดือนเดียวกัน
-
+                    DB::commit();
                     return back()->withErrors([
                         'error' => "ไม่สามารถสิ้นสุดสัญญาได้ เนื่องจากยังมีรายการค้างชำระของรอบเดือน: {$months} กรุณาจัดการยอดค้างให้เรียบร้อยก่อน"
                     ])->withInput();

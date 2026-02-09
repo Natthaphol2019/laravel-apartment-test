@@ -81,7 +81,7 @@ class CalculateLateFees extends Command
                     }
                 } catch (\Exception $e) {
                     // แสดง Error บนหน้าจอ Terminal แทนการลงไฟล์ Log
-                    $this->error("❌เกิดข้อผิดพลาดที่ห้อง {$invoice->id}: " . $e->getMessage());
+                    $this->error("เกิดข้อผิดพลาดที่ห้อง {$invoice->id}: " . $e->getMessage());
                     continue;
                 }
             }
