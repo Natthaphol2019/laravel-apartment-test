@@ -146,7 +146,7 @@
 </head>
 <body>
 
-    <aside class="sidebar" id="sidebar">
+    <aside class="sidebar no-print" id="sidebar">
         <div class="sidebar-header">
             <div>
                 <h5 class="mb-0 fw-bold">Admin Panel</h5>
@@ -159,54 +159,86 @@
 
         <div class="flex-grow-1 overflow-auto">
             <div class="menu-category">ภาพรวม</div>
-            {{-- เช็คถ้าเป็น route แผงควบคุม ให้ใส่คลาส active --}}
-                <a href="{{ route('admin.dashboard') }}" class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
-                    <i class="bi bi-grid-1x2-fill"></i>
-                    <span class="nav-text">แผงควบคุม</span>
-                </a>
+            <a href="{{ route('admin.dashboard') }}" class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
+                <i class="bi bi-grid-1x2-fill"></i>
+                <span class="nav-text">แผงควบคุม (Dashboard)</span>
+            </a>
+            <a href="#" class="nav-link"> <i class="bi bi-layout-three-columns"></i>
+                <span class="nav-text">ผังห้องพัก & การจอง</span>
+            </a>
 
-                <div class="menu-category">จัดการอาคาร</div>
-                
-                {{-- ตั้งค่าอพาร์ทเม้นท์ --}}
-                <a href="{{ route('admin.apartment.show') }}" class="nav-link {{ request()->routeIs('admin.apartment.*') ? 'active' : '' }}">
-                    <i class="bi bi-gear-fill"></i>
-                    <span class="nav-text">ตั้งค่าอพาร์ทเม้นท์</span>
-                </a>
+            <div class="menu-category">งานบริหารห้องเช่า</div>
+            
+            <a href="{{ route('admin.tenants.show') }}" class="nav-link {{ request()->routeIs('admin.tenants.*') ? 'active' : '' }}">
+                <i class="bi bi-person-badge-fill"></i>
+                <span class="nav-text">จัดการผู้เช่า</span>
+            </a>
 
-                {{-- ข้อมูลตึก --}}
-                <a href="{{ route('admin.building.show') }}" class="nav-link {{ request()->routeIs('admin.building.*') ? 'active' : '' }}">
-                    <i class="bi bi-buildings-fill"></i>
-                    <span class="nav-text">ข้อมูลตึก</span>
-                </a>
+            <a href="{{ route('admin.meter_readings.show') }}" class="nav-link {{ request()->routeIs('admin.meter_readings.*') ? 'active' : '' }}">
+                <i class="bi bi-speedometer"></i>
+                <span class="nav-text">จดมิเตอร์น้ำ-ไฟ</span>
+            </a>
 
-                {{-- ประเภทห้องพัก --}}
-                <a href="{{ route('admin.room_types.show') }}" class="nav-link {{ request()->routeIs('admin.room_types.*') ? 'active' : '' }}">
-                    <i class="bi bi-tag-fill"></i>
-                    <span class="nav-text">ประเภทห้องพัก</span>
-                </a>
-                {{-- ราคาห้องต่อประเภทแต่ละตึก --}}
-                <a href="{{ route('admin.room_prices.show') }}" class="nav-link {{ request()->routeIs('admin.room_prices.*') ? 'active' : '' }}">
-                    <i class="bi bi-cash-stack"></i>
-                    <span class="nav-text">ราคาห้องแต่ละตึก</span>
-                </a>
-                {{-- ข้อมูลห้องพัก --}}
-                <a href="{{ route('admin.rooms.show') }}" class="nav-link {{ request()->routeIs('admin.rooms.*') ? 'active' : '' }}">
-                    <i class="bi bi-door-closed-fill"></i>
-                    <span class="nav-text">ข้อมูลห้องพัก</span>
-                </a>
-                {{-- จัดการผู้เช่า --}}
-                <a href="{{ route('admin.tenants.show') }}" class="nav-link {{ request()->routeIs('admin.tenants.*') ? 'active' : '' }}">
-                    <i class="bi bi-people-fill"></i>
-                    <span class="nav-text">ข้อมูลผู้เช่า</span>
-                </a>
+            <a href="{{ route('admin.invoices.show') }}" class="nav-link {{ request()->routeIs('admin.invoices.*') ? 'active' : '' }}">
+                <i class="bi bi-file-earmark-text-fill"></i>
+                <span class="nav-text">ออกใบแจ้งหนี้</span>
+            </a>
+
+            <a href="{{ route('admin.payments.pendingInvoicesShow') }}" class="nav-link {{ request()->routeIs('admin.payments.pendingInvoicesShow') ? 'active' : '' }}">
+                <i class="bi bi-wallet2"></i>
+                <span class="nav-text">รับชำระเงิน (Pay Bill)</span>
+            </a>
 
             <div class="menu-category">การเงิน & บัญชี</div>
-            <a href="#" class="nav-link"><i class="bi bi-receipt-cutoff"></i><span class="nav-text">ตั้งค่าเก็บค่าใช้จ่ายกับผู้เช่า <br> (ยังไม่ทำ)</span></a>
-            <a href="#" class="nav-link"><i class="bi bi-receipt-cutoff"></i><span class="nav-text">ออกใบแจ้งหนี้ (ยังไม่ทำ)</span></a>
-            <a href="#" class="nav-link"><i class="bi bi-cash-stack"></i><span class="nav-text">บันทึกรายรับ (ยังไม่ทำ)</span></a>
+            
+            <a href="{{ route('admin.payments.history') }}" class="nav-link {{ request()->routeIs('admin.payments.history') ? 'active' : '' }}">
+                <i class="bi bi-clock-history"></i>
+                <span class="nav-text">ประวัติรับเงินค่าเช่า</span>
+            </a>
+
+            <a href="{{ route('admin.accounting_transactions.show') }}" class="nav-link {{ request()->routeIs('admin.accounting_transactions.show') ? 'active' : '' }}">
+                <i class="bi bi-journal-check"></i>
+                <span class="nav-text">บันทึกรายรับ-รายจ่าย</span>
+            </a>
+
+            <a href="{{ route('admin.accounting_category.show') }}" class="nav-link {{ request()->routeIs('admin.accounting_category.*') ? 'active' : '' }}">
+                <i class="bi bi-list-stars"></i>
+                <span class="nav-text">หมวดหมู่บัญชี</span>
+            </a>
+
+            <div class="menu-category">จัดการข้อมูลอาคาร</div>
+            
+            <a href="{{ route('admin.rooms.show') }}" class="nav-link {{ request()->routeIs('admin.rooms.*') ? 'active' : '' }}">
+                <i class="bi bi-door-closed-fill"></i>
+                <span class="nav-text">ข้อมูลห้องพัก</span>
+            </a>
+
+            <a href="{{ route('admin.room_prices.show') }}" class="nav-link {{ request()->routeIs('admin.room_prices.*') ? 'active' : '' }}">
+                <i class="bi bi-tags-fill"></i>
+                <span class="nav-text">ราคาห้องแต่ละตึก</span>
+            </a>
+
+            <a href="{{ route('admin.tenant_expenses.show') }}" class="nav-link {{ request()->routeIs('admin.tenant_expenses.*') ? 'active' : '' }}">
+                <i class="bi bi-gear-wide-connected"></i>
+                <span class="nav-text">ตั้งค่าเก็บค่าใช้จ่าย</span>
+            </a>
+
+            <a href="{{ route('admin.building.show') }}" class="nav-link {{ request()->routeIs('admin.building.*') ? 'active' : '' }}">
+                <i class="bi bi-buildings-fill"></i>
+                <span class="nav-text">ข้อมูลตึก & ประเภทห้อง</span>
+            </a>
+
+            <a href="{{ route('admin.apartment.show') }}" class="nav-link {{ request()->routeIs('admin.apartment.*') ? 'active' : '' }}">
+                <i class="bi bi-shop-window"></i>
+                <span class="nav-text">ตั้งค่าอพาร์ทเม้นท์</span>
+            </a>
+
             @if (Auth::guard('admin')->user()->role === 'ผู้บริหาร')            
-                <div class="menu-category">จัดการผู้ดูแลระบบงาน</div>
-                <a href="{{ route('admin.users_manage.show') }}" class="nav-link"><i class="bi bi-person-fill"></i><span class="nav-text">ข้อมูลผู้ดูแลระบบงาน</span></a>
+                <div class="menu-category">ระบบหลังบ้าน</div>
+                <a href="{{ route('admin.users_manage.show') }}" class="nav-link {{ request()->routeIs('admin.users_manage.*') ? 'active' : '' }}">
+                    <i class="bi bi-person-lock"></i>
+                    <span class="nav-text">จัดการทีมงาน</span>
+                </a>
             @endif
         </div>
 
@@ -219,7 +251,7 @@
     </aside>
 
     <div class="main-wrapper" id="mainWrapper">
-        <header class="topbar">
+        <header class="topbar no-print">
             <button class="btn d-md-none p-0" id="toggleSidebar">
                 <i class="bi bi-list fs-3"></i>
             </button>
@@ -239,12 +271,12 @@
             @yield('content')
         </div>
 
-        <footer class="mt-auto py-3 text-center text-muted small border-top bg-white">
+        <footer class="mt-auto py-3 text-center text-muted small border-top bg-white no-print">
             &copy; {{ date('Y') }} อาทิตย์ อพาร์ทเม้นท์. 199 หมู่ 4 ต.บ้านสร้าง.
         </footer>
     </div>
 
-    <form id="logout-form" action="{{ route('admin.logout') }}" method="POST" class="d-none">
+    <form id="logout-form" action="{{ route('admin.logout') }}" method="POST" class="d-none no-print">
         @csrf
     </form>
 
@@ -278,11 +310,35 @@
     </script>
 
     <script>
-        @if(session('success'))
-            Swal.fire({ icon: 'success', title: 'สำเร็จ!', text: "{{ session('success') }}", timer: 2000, showConfirmButton: false });
-        @endif
+        //  1. ดักจับ Error จาก withErrors() 
         @if($errors->any())
-            Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด!', html: "{!! implode('<br>', $errors->all()) !!}", confirmButtonColor: '#4e73df' });
+            Swal.fire({ 
+                icon: 'error', 
+                title: 'เกิดข้อผิดพลาด!', 
+                html: "{!! implode('<br>', $errors->all()) !!}", 
+                confirmButtonColor: '#4e73df' 
+            });
+        @endif
+
+        // 2. ดักจับ Error จาก with('error', ...) 
+        @if(session('error'))
+            Swal.fire({ 
+                icon: 'error', 
+                title: 'แจ้งเตือน', 
+                text: "{{ session('error') }}", 
+                confirmButtonColor: '#4e73df' 
+            });
+        @endif
+
+        // 3. ดักจับ Success จาก with('success', ...)
+        @if(session('success'))
+            Swal.fire({ 
+                icon: 'success', 
+                title: 'สำเร็จ!', 
+                text: "{{ session('success') }}", 
+                timer: 2000,
+                showConfirmButton: false 
+            });
         @endif
     </script>
     

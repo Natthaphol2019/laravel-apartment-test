@@ -24,6 +24,7 @@ class Tenant extends Authenticatable
         'end_date',
         'has_parking',
         'resident_count',
+        'deposit_amount',
         'rental_contract',
         'status',
     ];

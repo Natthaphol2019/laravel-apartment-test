@@ -73,12 +73,10 @@
                             <td class="text-center px-4">
                                 @if($item->status == 'กำลังใช้งาน')
                                     {{-- ปุ่มสิ้นสุดสัญญา (เฉพาะสถานะกำลังใช้งาน) --}}
-                                    <form action="{{ route('admin.tenants.updateStatusTenant', $item->id) }}" method="POST" class="d-inline" id="terminate-form-{{ $item->id }}">
-                                        @csrf @method('PUT')
-                                        <button type="button" class="btn btn-outline-dark btn-sm me-1" onclick="confirmTerminate({{ $item->id }}, '{{ $item->room->room_number }}')">
-                                            <i class="bi bi-door-closed"></i> สิ้นสุดสัญญา
-                                        </button>
-                                    </form>
+                                    <button type="button" class="btn btn-outline-dark btn-sm me-1" 
+                                        onclick="TerminateForm({{ json_encode($item) }})">
+                                        <i class="bi bi-door-closed"></i> สิ้นสุดสัญญา
+                                    </button>
 
                                     {{-- ปุ่มแก้ไข --}}
                                     <button class="btn btn-outline-warning btn-sm me-1" onclick="openEditModal({{ json_encode($item) }})">
@@ -178,11 +176,19 @@
                         </div>
 
                         <div class="col-12 mt-4"><h6 class="fw-bold text-primary border-bottom pb-2">เงื่อนไขและสัญญา</h6></div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-bold">เงินมัดจำ *</label>
+                            <input type="number" name="deposit_amount" class="form-control" min="0" required>
+                        </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">วันที่เริ่มเช่า *</label>
                             <input type="date" name="start_date" class="form-control" value="{{ date('Y-m-d') }}" required>
                         </div>
                         <div class="col-md-6">
+                            <label class="form-label fw-bold">วันที่สิ้นสุดการเช่า (ไม่บังคับกรอก)</label>
+                            <input type="date" name="end_date" class="form-control" >
+                        </div>
+                        <div class="col-md-12">
                             <label class="form-label fw-bold">ไฟล์สัญญาเช่า (.pdf, .jpg) *</label>
                             <input type="file" name="rental_contract" class="form-control" accept=".pdf,.jpg,.jpeg,.png" required>
                         </div>
@@ -269,8 +275,19 @@
                         </div>
 
                         <div class="col-12 mt-4"><h6 class="fw-bold text-dark border-bottom pb-2">การติดต่อและเอกสาร</h6></div>
-
-                        <div class="col-md-12">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">วันที่เริ่มเช่า *</label>
+                            <input type="date" name="start_date" id="edit_start_date" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">วันที่สิ้นสุดการเช่า *</label>
+                            <input type="date" name="end_date" id="edit_end_date" class="form-control"  required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">เงินมัดจำ *</label>
+                            <input type="number" name="deposit_amount" id="edit_deposit_amount" class="form-control" min="0" required>
+                        </div>
+                        <div class="col-md-6">
                             <label class="form-label fw-bold">เปลี่ยนไฟล์สัญญา (PDF/รูป)</label>
                             <input type="file" name="rental_contract" class="form-control" accept=".pdf,.jpg,.jpeg,.png" placeholder="อัพโหลดไฟล์ใหม่เพื่อเปลี่ยนสัญญา">
                         </div>
@@ -288,6 +305,40 @@
                     <button type="button" class="btn btn-warning px-4 fw-bold shadow-sm" onclick="confirmUpdate()" id="btnUpdateTenant">
                         <i class="bi bi-save me-1"></i> บันทึกการแก้ไข
                     </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{{-- MODAL TERMINATE (สิ้นสุดสัญญา) --}}
+<div class="modal fade" id="terminateTenantModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold">ระบุรายละเอียดการสิ้นสุดสัญญา</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="terminateForm" method="POST">
+                @csrf @method('PUT')
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">ห้องพัก</label>
+                        <input type="text" id="term_room_number" class="form-control bg-light" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">วันที่สิ้นสุดสัญญา</label>
+                        <input type="date" name="end_date" id="term_end_date" class="form-control" required>
+                        <small class="text-muted">* หากเว้นว่างไว้ ระบบจะใช้วันที่ปัจจุบัน</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">ยอดเงินมัดจำที่จะคืน (บาท)</label>
+                        <input type="number" name="refund_amount" id="term_refund_amount" class="form-control" min="0" step="0.01" required>
+                        <small class="text-danger">* หากระบุเป็น 0 ระบบจะไม่บันทึกรายการจ่ายคืนเงินมัดจำ</small>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">ยกเลิก</button>
+                    <button type="button" onclick="confirmTerminate()" class="btn btn-dark px-4">ยืนยันการสิ้นสุดสัญญา</button>
                 </div>
             </form>
         </div>
@@ -312,6 +363,10 @@
         document.getElementById('edit_province').value = tenant.province || '';
         document.getElementById('edit_postal_code').value = tenant.postal_code || '';
         document.getElementById('edit_phone').value = tenant.phone || '';
+        // ข้อมูล เช่า
+        document.getElementById('edit_deposit_amount').value = tenant.deposit_amount || '';
+        document.getElementById('edit_start_date').value = tenant.start_date || '';
+        document.getElementById('edit_end_date').value = tenant.end_date || '';
 
         // จัดการสถานะ Checkbox ที่จอดรถ
         document.getElementById('edit_has_parking').checked = tenant.has_parking == 1;
@@ -338,10 +393,26 @@
             }
         });
     }
-    function confirmTerminate(id, roomNumber) {
+
+    function TerminateForm(tenant) {
+        // 1. กำหนดค่าลงใน Modal
+        document.getElementById('term_room_number').value = tenant.room.room_number;
+        document.getElementById('term_refund_amount').value = tenant.deposit_amount;
+        document.getElementById('term_end_date').value = tenant.end_date;
+
+        // 2. เปลี่ยน Action URL ของ Form
+        let url = "{{ route('admin.tenants.updateStatusTenant', ':id') }}";
+        url = url.replace(':id', tenant.id);
+        document.getElementById('terminateForm').action = url;
+
+        // 3. เปิด Modal
+        new bootstrap.Modal(document.getElementById('terminateTenantModal')).show();
+    }
+
+    function confirmTerminate() {
         Swal.fire({
             title: 'ยืนยันการสิ้นสุดสัญญา?',
-            text: "ห้อง " + roomNumber + " จะถูกเปลี่ยนสถานะเป็นว่าง และผู้เช่ารายนี้จะไม่สามารถแก้ไขข้อมูลได้อีก!",
+            text: "เปลี่ยนสถานะเป็นว่าง และผู้เช่ารายนี้จะไม่สามารถแก้ไขข้อมูลได้อีก!",
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#3085d6',
@@ -357,7 +428,7 @@
                     allowOutsideClick: false,
                     didOpen: () => { Swal.showLoading(); }
                 });
-                document.getElementById('terminate-form-' + id).submit();
+                document.getElementById('terminateForm').submit();
             }
         });
     }
