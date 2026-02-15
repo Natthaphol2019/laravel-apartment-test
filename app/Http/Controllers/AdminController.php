@@ -424,6 +424,83 @@ class AdminController extends Controller
 
         }
     }
+    //15 ก.พ. 69 จัดการผังห้อง
+    public function floorPlan()
+    {
+        // ดึงห้องทั้งหมดมาแสดง
+        $rooms = Room::all();
+
+        // กำหนดขนาดพื้นที่วาด (SVG Canvas)
+        $svgWidth = 1000;
+        $svgHeight = 600;
+
+        return view('admin.floorplan', compact('rooms', 'svgWidth', 'svgHeight'));
+    }
+    // 2. เพิ่มฟังก์ชันบันทึกตำแหน่ง (รับ JSON จาก JS)
+    public function saveLayout(Request $request)
+    {
+        $positions = $request->input('positions'); // รับข้อมูล Array: [{id:1, x:10, y:20}, ...]
+
+        if ($positions) {
+            foreach ($positions as $pos) {
+                Room::where('id', $pos['id'])->update([
+                    'pos_x' => $pos['x'],
+                    'pos_y' => $pos['y']
+                ]);
+            }
+        }
+
+        return response()->json(['status' => 'success', 'message' => 'บันทึกตำแหน่งเรียบร้อย!']);
+    }
+    //ส่วนสองเพิ่มมา
+    public function roomSystem(Request $request)
+{
+    // 1. รับค่า Filter
+    $buildingId = $request->input('building_id');
+    $status = $request->input('status');
+    $search = $request->input('search');
+    $floor = $request->input('floor');
+
+    // 2. สร้าง Query แบบ Join ตาราง เพื่อให้รู้จัก building_id
+    $query = Room::query()
+        ->join('room_prices', 'rooms.room_price_id', '=', 'room_prices.id')
+        ->join('buildings', 'room_prices.building_id', '=', 'buildings.id')
+        ->join('room_types', 'room_prices.room_type_id', '=', 'room_types.id') // Join เพื่อเอาชื่อประเภทห้องด้วย
+        ->select(
+            'rooms.*', 
+            'buildings.name as building_name', 
+            'buildings.id as building_id',
+            'room_types.name as room_type_name'
+        );
+
+    // 3. ใส่ Filter ต่างๆ
+    if ($buildingId) {
+        $query->where('buildings.id', $buildingId); // ตอนนี้ใช้ได้แล้ว
+    }
+
+    if ($status) {
+        $query->where('rooms.status', $status);
+    }
+
+    if ($search) {
+        $query->where('rooms.room_number', 'like', "%{$search}%");
+    }
+    
+    if ($floor) {
+        $query->where('rooms.room_number', 'like', $floor . '%');
+    }
+
+    // 4. จัดเรียง (เรียงตามตึก -> ชั้น -> เลขห้อง)
+    $rooms = $query->orderBy('buildings.id', 'asc')
+                   ->orderBy('rooms.room_number', 'asc')
+                   ->paginate(15)
+                   ->withQueryString();
+
+    // ดึงข้อมูลตึกสำหรับ Dropdown
+    $buildings = \App\Models\Building::all();
+
+    return view('admin.rooms.system', compact('rooms', 'buildings'));
+}
 
     // ---------------------------------------------
 
@@ -642,21 +719,21 @@ class AdminController extends Controller
             if ($tenant->status == 'สิ้นสุดสัญญา') {
                 return redirect()->back()->withErrors(['error' => 'สัญญานี้ได้สิ้นสุดลงก่อนหน้านี้แล้ว']);
             }
-        // ค้นหาบิลที่สถานะเป็น 'ค้างชำระ' หรือ 'ชำระบางส่วน' ของผู้เช่ารายนี้
-                $unpaidInvoices = Invoice::where('tenant_id', $id)
-                    ->whereIn('status', ['ค้างชำระ', 'ชำระบางส่วน'])
-                    ->get();
+            // ค้นหาบิลที่สถานะเป็น 'ค้างชำระ' หรือ 'ชำระบางส่วน' ของผู้เช่ารายนี้
+            $unpaidInvoices = Invoice::where('tenant_id', $id)
+                ->whereIn('status', ['ค้างชำระ', 'ชำระบางส่วน'])
+                ->get();
 
-                if ($unpaidInvoices->isNotEmpty()) {
-                    // แปลงรอบเดือนแต่ละใบเป็นภาษาไทย และรวมเป็นข้อความเดียว
-                    $months = $unpaidInvoices->map(function ($inv) {
-                        return $this->toThaiDate($inv->billing_month, false); // false เพื่อเอาเฉพาะเดือน/ปี
-                    })->unique()->implode(', '); // unique() เพื่อป้องกันกรณีมีหลายบิลในเดือนเดียวกัน
+            if ($unpaidInvoices->isNotEmpty()) {
+                // แปลงรอบเดือนแต่ละใบเป็นภาษาไทย และรวมเป็นข้อความเดียว
+                $months = $unpaidInvoices->map(function ($inv) {
+                    return $this->toThaiDate($inv->billing_month, false); // false เพื่อเอาเฉพาะเดือน/ปี
+                })->unique()->implode(', '); // unique() เพื่อป้องกันกรณีมีหลายบิลในเดือนเดียวกัน
 
-                    return back()->withErrors([
-                        'error' => "ไม่สามารถสิ้นสุดสัญญาได้ เนื่องจากยังมีรายการค้างชำระของรอบเดือน: {$months} กรุณาจัดการยอดค้างให้เรียบร้อยก่อน"
-                    ])->withInput();
-                }
+                return back()->withErrors([
+                    'error' => "ไม่สามารถสิ้นสุดสัญญาได้ เนื่องจากยังมีรายการค้างชำระของรอบเดือน: {$months} กรุณาจัดการยอดค้างให้เรียบร้อยก่อน"
+                ])->withInput();
+            }
             // 1. จัดการวันที่สิ้นสุดสัญญา (ถ้าไม่ระบุให้ใช้ now())
             $endDate = $request->end_date ?: now();
 
@@ -1070,9 +1147,9 @@ class AdminController extends Controller
         $rooms->each(function ($room) use ($invoices, $allExpenseSettings) {
             $invoice = $invoices->get($room->id);
             $room->current_invoice = $invoice;
-            
+
             $detailsMap = collect();
-            
+
             if ($invoice) {
                 foreach ($invoice->details as $detail) {
                     // ค้นหาว่าชื่อในรายละเอียดบิล ตรงกับหมวดหมู่ไหนใน Setting
@@ -1083,21 +1160,21 @@ class AdminController extends Controller
 
                     // ถ้าเจอหมวดที่ตรงกัน ให้ใช้ชื่อหมวดหมู่เป็น Key เพื่อให้ตรงกับหัวตาราง
                     $key = $matchedCategory ? $matchedCategory->name : $detail->name;
-                    
+
                     $detailsMap[$key] = ($detailsMap[$key] ?? 0) + $detail->subtotal;
                 }
             }
-            
+
             $room->expense_details = $detailsMap;
 
-            $lastPayment = $invoice 
-                ? $invoice->payments->where('status', 'active')->sortByDesc('payment_date')->first() 
+            $lastPayment = $invoice
+                ? $invoice->payments->where('status', 'active')->sortByDesc('payment_date')->first()
                 : null;
             $room->payment_date_display = $lastPayment ? $this->toThaiDate($lastPayment->payment_date, true, true) : '-';
         });
 
         $thai_month = $this->toThaiDate($billing_month, false);
-        
+
         return view('admin.invoices.collection_report', compact(
             'rooms',
             'billing_month',
@@ -1921,14 +1998,14 @@ class AdminController extends Controller
 
                     AccountingTransaction::create([
                         'category_id' => $categoryId,
-                        'payment_id'  => $payment->id,
-                        'tenant_id'   => $invoice->tenant_id,
-                        'user_id'     => Auth::id(),
-                        'title'       => $detail->name . " (ห้อง " . $invoice->tenant->room->room_number . ")",
-                        'amount'      => $allocation,
-                        'entry_date'  => $request->payment_date,
+                        'payment_id' => $payment->id,
+                        'tenant_id' => $invoice->tenant_id,
+                        'user_id' => Auth::id(),
+                        'title' => $detail->name . " (ห้อง " . $invoice->tenant->room->room_number . ")",
+                        'amount' => $allocation,
+                        'entry_date' => $request->payment_date,
                         'description' => "ชำระเงิน (บางส่วน/เต็ม) ช่องทาง: " . $payment->payment_method,
-                        'status'      => 'active',
+                        'status' => 'active',
                     ]);
 
                     $paidRemaining -= $allocation;
@@ -1974,23 +2051,25 @@ class AdminController extends Controller
 
         // ค้นหาชื่อ-นามสกุล ผู้ชำระ (Tenant)
         if ($filterPayer) {
-            $query->whereHas('invoice.tenant', function($q) use ($filterPayer) {
+            $query->whereHas('invoice.tenant', function ($q) use ($filterPayer) {
                 $q->where('first_name', 'like', "%{$filterPayer}%")
-                ->orWhere('last_name', 'like', "%{$filterPayer}%");
+                    ->orWhere('last_name', 'like', "%{$filterPayer}%");
             });
         }
 
         // ค้นหาชื่อ-นามสกุล ผู้รับเงิน (Admin)
         if ($filterReceiver) {
-            $query->whereHas('admin', function($q) use ($filterReceiver) {
+            $query->whereHas('admin', function ($q) use ($filterReceiver) {
                 $q->where('firstname', 'like', "%{$filterReceiver}%")
-                ->orWhere('lastname', 'like', "%{$filterReceiver}%");
+                    ->orWhere('lastname', 'like', "%{$filterReceiver}%");
             });
         }
 
         // ตัวกรองอื่นๆ
-        if ($filterMethod) $query->where('payment_method', $filterMethod);
-        if ($filterMonth) $query->whereHas('invoice', fn($q) => $q->where('billing_month', $filterMonth));
+        if ($filterMethod)
+            $query->where('payment_method', $filterMethod);
+        if ($filterMonth)
+            $query->whereHas('invoice', fn($q) => $q->where('billing_month', $filterMonth));
 
         $history = $query->orderBy('payment_date', 'desc')->orderBy('created_at', 'desc')->paginate(20);
         $displayTitle = $filterMonth ? "ประวัติการชำระเงินรอบเดือน " . $this->toThaiDate($filterMonth, false) : "ประวัติการชำระเงินทั้งหมด";
@@ -2000,12 +2079,15 @@ class AdminController extends Controller
         }
 
         $availableMonths = Invoice::whereHas('payments')->select('billing_month')->distinct()->orderBy('billing_month', 'desc')->get();
-        foreach ($availableMonths as $m) { $m->thai_billing_month = $this->toThaiDate($m->billing_month, false); }
+        foreach ($availableMonths as $m) {
+            $m->thai_billing_month = $this->toThaiDate($m->billing_month, false);
+        }
 
-        return view('admin.payments.history', compact('history', 'availableMonths', 'filterRoom', 'filterMethod', 'filterPayer', 'filterReceiver', 'filterMonth' , 'filterStatus' ,'displayTitle'));
+        return view('admin.payments.history', compact('history', 'availableMonths', 'filterRoom', 'filterMethod', 'filterPayer', 'filterReceiver', 'filterMonth', 'filterStatus', 'displayTitle'));
     }
     //เพิ่มฟังก์ชันดึงรายละเอียดการชำระเงินผ่าน AJAX
-    public function getPaymentDetail($id) {
+    public function getPaymentDetail($id)
+    {
         $pay = Payment::with(['invoice.tenant.room', 'invoice.admin', 'admin'])->findOrFail($id);
         return response()->json([
             'room' => $pay->invoice->tenant->room->room_number,
@@ -2020,17 +2102,19 @@ class AdminController extends Controller
             'invoice_no' => $pay->invoice->invoice_number
         ]);
     }
-    public function updatePayment(Request $request, $id) {
+    public function updatePayment(Request $request, $id)
+    {
         try {
             DB::beginTransaction();
             $pay = Payment::findOrFail($id);
-            
+
             $pay->payment_method = $request->payment_method;
             $pay->note = $request->note;
 
             if ($request->hasFile('slip_image')) {
                 // ลบรูปเก่าถ้ามี และบันทึกรูปใหม่
-                if ($pay->slip_image) \Storage::disk('public')->delete($pay->slip_image);
+                if ($pay->slip_image)
+                    \Storage::disk('public')->delete($pay->slip_image);
                 $pay->slip_image = $request->file('slip_image')->store('slips', 'public');
             }
             $pay->save();
@@ -2071,7 +2155,7 @@ class AdminController extends Controller
             }
             // แก้ไข: ลบบรรทัด $invoice->remaining_balance = ... ออก 
             // เพราะมันคือ virtual field ที่คำนวณสดจาก getTotalPaidAttribute
-            $invoice->save(); 
+            $invoice->save();
 
             DB::commit();
             return back()->with('success', 'ยกเลิกรายการชำระเงินเรียบร้อยแล้ว');
@@ -2123,7 +2207,7 @@ class AdminController extends Controller
         if ($filterAdmin) {
             $query->whereHas('admin', function ($q) use ($filterAdmin) {
                 $q->where('firstname', 'like', "%{$filterAdmin}%")
-                ->orWhere('lastname', 'like', "%{$filterAdmin}%");
+                    ->orWhere('lastname', 'like', "%{$filterAdmin}%");
             });
         }
 
@@ -2156,7 +2240,7 @@ class AdminController extends Controller
             'categoryId',
             'searchRoom',
             'searchDetail',
-            'filterAdmin', 
+            'filterAdmin',
             'filterStatus',
             'displayDate'
         ));
@@ -2310,7 +2394,7 @@ class AdminController extends Controller
     {
         $startDate = $request->date_start;
         $endDate = $request->date_end;
-        $target = $request->target; 
+        $target = $request->target;
         $name = $request->name;
 
         // 📝 กรณีที่ 1: ยอดค้างรับ (ดึงจาก Invoice และเชื่อม InvoiceDetails)
@@ -2323,8 +2407,8 @@ class AdminController extends Controller
                 ->get()
                 ->map(function ($inv) {
                     // ✅ แก้ไข: ใช้ Carbon::parse เพื่อป้องกัน Error กรณี issue_date เป็น String
-                    
-                    $formattedDate = $this->toThaiDate($inv->issue_date,true,true);
+    
+                    $formattedDate = $this->toThaiDate($inv->issue_date, true, true);
                     return [
                         'date' => $formattedDate,
                         'title' => "ใบแจ้งหนี้ " . $inv->tenant->first_name . " " . $inv->tenant->last_name,
@@ -2361,7 +2445,7 @@ class AdminController extends Controller
         }
 
         $items = $query->get()->map(function ($t) {
-            $formattedDate = $this->toThaiDate($t->entry_date,true,true);
+            $formattedDate = $this->toThaiDate($t->entry_date, true, true);
             return [
                 'date' => $formattedDate,
                 'title' => $t->title,
@@ -2375,7 +2459,8 @@ class AdminController extends Controller
         return response()->json(['title' => $modalTitle ?? 'รายละเอียด', 'items' => $items]);
     }
     // print summary
-    public function printSummaryPdf(Request $request) {
+    public function printSummaryPdf(Request $request)
+    {
         $startDate = $request->input('date_start') ?? now()->startOfMonth()->format('Y-m-d');
         $endDate = $request->input('date_end') ?? now()->endOfMonth()->format('Y-m-d');
 
@@ -2411,11 +2496,19 @@ class AdminController extends Controller
         $apartment = DB::table('apartment')->first();
 
         $pdf = Pdf::loadView('admin.accounting_transactions.pdf.print_summary_pdf', compact(
-            'buildingIncome', 'otherIncome', 'expenseByCats', 'outstandingAmount', 
-            'displayDate', 'startDate', 'endDate', 'thai_startDate', 'thai_endDate', 'apartment'
+            'buildingIncome',
+            'otherIncome',
+            'expenseByCats',
+            'outstandingAmount',
+            'displayDate',
+            'startDate',
+            'endDate',
+            'thai_startDate',
+            'thai_endDate',
+            'apartment'
         ))->setPaper('a4', 'portrait'); // งบสรุปแนะนำแนวตั้ง (Portrait)
 
-        return $pdf->stream('Accounting_Summary_'.$startDate.'.pdf');
+        return $pdf->stream('Accounting_Summary_' . $startDate . '.pdf');
     }
     public function reportIncome(Request $request)
     {
@@ -2491,11 +2584,18 @@ class AdminController extends Controller
 
         // 3. สร้าง PDF
         $pdf = Pdf::loadView('admin.accounting_transactions.pdf.print_income_pdf', compact(
-            'incomeByGroup', 'outstandingAmount', 'outstandingDetails', 
-            'displayDate', 'startDate', 'endDate', 'thai_startDate', 'thai_endDate', 'apartment'
+            'incomeByGroup',
+            'outstandingAmount',
+            'outstandingDetails',
+            'displayDate',
+            'startDate',
+            'endDate',
+            'thai_startDate',
+            'thai_endDate',
+            'apartment'
         ))->setPaper('a4', 'portrait');
 
-        return $pdf->stream('Income_Report_'.$startDate.'.pdf');
+        return $pdf->stream('Income_Report_' . $startDate . '.pdf');
     }
     public function reportExpense(Request $request)
     {
@@ -2547,11 +2647,16 @@ class AdminController extends Controller
 
         // 3. สร้าง PDF ในแนวตั้ง (Portrait)
         $pdf = Pdf::loadView('admin.accounting_transactions.pdf.print_expense_pdf', compact(
-            'expenseByGroup', 'displayDate', 'startDate', 'endDate', 
-            'thai_startDate', 'thai_endDate', 'apartment'
+            'expenseByGroup',
+            'displayDate',
+            'startDate',
+            'endDate',
+            'thai_startDate',
+            'thai_endDate',
+            'apartment'
         ))->setPaper('a4', 'portrait');
 
-        return $pdf->stream('Expense_Report_'.$startDate.'.pdf');
+        return $pdf->stream('Expense_Report_' . $startDate . '.pdf');
     }
     // ---------------------------------------------
 
