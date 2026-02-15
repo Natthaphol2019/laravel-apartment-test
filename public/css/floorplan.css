@@ -1,0 +1,99 @@
+:root {
+    --bg-color: #f8f9fa;
+    --stroke-color: #343a40;
+    --text-color: #212529;
+    
+    /* Status Colors */
+    --status-available: #28a745;       /* สีเขียว */
+    --status-available-hover: #218838;
+    
+    --status-occupied: #dc3545;        /* สีแดง */
+    --status-occupied-hover: #c82333;
+    
+    --status-repair: #ffc107;          /* สีเหลือง */
+    --status-repair-hover: #e0a800;
+}
+
+body {
+    background-color: var(--bg-color);
+    font-family: 'Sarabun', sans-serif; /* หรือ font ที่คุณมี */
+    padding: 20px;
+    text-align: center;
+}
+
+.layout-container {
+    max-width: 100%;
+    overflow-x: auto; /* Scroll ได้ถ้าจอเล็ก */
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    margin: 0 auto;
+    display: inline-block;
+}
+
+/* SVG Styles */
+svg {
+    display: block;
+}
+
+/* Room Group (Container ของ Rect และ Text) */
+.room-group {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+/* ตัวห้อง (Rect) */
+.room-shape {
+    fill: #fff; /* Default fill */
+    stroke: var(--stroke-color);
+    stroke-width: 2;
+    transition: fill 0.3s ease, transform 0.2s ease;
+}
+
+/* ตัวเลขห้อง (Text) */
+.room-text {
+    font-size: 16px;
+    font-weight: bold;
+    fill: var(--text-color);
+    pointer-events: none; /* ให้เมาส์ทะลุไปโดน rect */
+    text-anchor: middle; /* จัดกึ่งกลางแนวนอน */
+    dominant-baseline: middle; /* จัดกึ่งกลางแนวตั้ง */
+}
+
+/* --- Status Styling --- */
+
+/* Available */
+.status-available .room-shape {
+    fill: #e8f5e9; /* พื้นหลังจางๆ */
+    stroke: var(--status-available);
+}
+.status-available:hover .room-shape {
+    fill: var(--status-available);
+    transform: scale(1.05); /* ขยายเล็กน้อย */
+}
+.status-available:hover .room-text {
+    fill: #fff;
+}
+
+/* Occupied */
+.status-occupied .room-shape {
+    fill: #fde8e8;
+    stroke: var(--status-occupied);
+}
+.status-occupied:hover .room-shape {
+    fill: var(--status-occupied);
+}
+.status-occupied:hover .room-text {
+    fill: #fff;
+}
+
+/* Repair */
+.status-repair .room-shape {
+    fill: #fff9db;
+    stroke: var(--status-repair);
+    stroke-dasharray: 5, 5; /* เส้นประแสดงว่าซ่อม */
+}
+.status-repair:hover .room-shape {
+    fill: var(--status-repair);
+}
